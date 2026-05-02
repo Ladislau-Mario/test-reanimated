@@ -12,87 +12,59 @@ import DeliverRegisterThree from '../pages/deliver/deliverRegister/screenThree/t
 import DeliverRegisterFour from '../pages/deliver/deliverRegister/screenFour/four';
 import ClientRegisterEmail from '../pages/client/clientRegister/clientRegisterEmail/clientRegisterEmail';
 import LocationPermission from '../pages/client/locationPermission/clientPermission';
-
-import BottomRoutes from './bottom.routes';
-//import { DrawerRoutes } from './drawer.routes';
-
-import RegistrationStatus from '../pages/deliver/registrationStatus/firstRegisterStatus/firstRegisterStatus';
 import FirstRegistrationStatus from '../pages/deliver/registrationStatus/firstRegisterStatus/firstRegisterStatus';
 import SecundRegistrationStatus from '../pages/deliver/registrationStatus/secundRegisterStatus/secundRegisterStatus';
 import ThirdRegistrationStatus from '../pages/deliver/registrationStatus/thirdRegisterStatus/thirdRegisterStatus';
 import AccessConfig from '../pages/deliver/deliverPermission/deliverPermission';
 
-import Home from '../pages/client/mainClient/home';
+// ✅ BottomRoutes contém o Drawer com o Home dentro
+import BottomRoutes from './bottom.routes';
+import DeliverRoutes from './deliver.routes';
 
-    const Stack = createStackNavigator();
+const Stack = createStackNavigator();
 
-export default function Routes(){ 
-
-    return(
-        <Stack.Navigator  
-            screenOptions={{ 
-            detachPreviousScreen: false, // Mantém a tela de baixo visível durante a transiçã
-            headerShown: false,
-            gestureEnabled: true,
-            gestureDirection: 'horizontal',
-            cardStyleInterpolator: ({ current, layouts }) => {
-            return {
-                cardStyle: {
-                transform: [
-                    {
-                    translateX: current.progress.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [layouts.screen.width, 0],
-                    }),
-                    },
-                ],
-                },
-            };
-            },
-        }}
-><Stack.Screen name="SecundRegistrationStatus" component={SecundRegistrationStatus} />
-     <Stack.Screen name="AccessConfig" component={AccessConfig} /> 
-  <Stack.Screen name="Onboarding" component={Onboarding} />
-  <Stack.Screen name=" Home" component={ Home} />
-
-  <Stack.Screen name="FirstRegistrationStatus" component={FirstRegistrationStatus} />
+export default function Routes() {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        gestureEnabled: true,
+        gestureDirection: 'horizontal',
+        cardStyleInterpolator: ({ current, layouts }) => ({
+          cardStyle: {
+            transform: [
+              {
+                translateX: current.progress.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [layouts.screen.width, 0],
+                }),
+              },
+            ],
+          },
+        }),
+      }}
+    >
 
 
-           <Stack.Screen name="LocationPermission" component={LocationPermission} />
-
-            
-            <Stack.Screen name="ThirdRegistrationStatus" component={ThirdRegistrationStatus} />
-           
-            
-
-           
-
-            
-
-          
-
-            
-           
-            <Stack.Screen name="InputPhoneNumber" component={InputPhoneNumber} />
-
-            <Stack.Screen name="VerifycationNumber" component={VerifycationNumber} />
-
-            <Stack.Screen name="ChoiceMode" component={ChoiceMode} />
-
-            <Stack.Screen name="ClientRegister" component={ClientRegister} />
-
-            <Stack.Screen name="ClientRegisterEmail" component={ClientRegisterEmail} />
-
-            <Stack.Screen name="DeliverRegister" component={DeliverRegister} />
-
-            <Stack.Screen name="DeliverRegisterTwo" component={DeliverRegisterTwo} />
-
-            <Stack.Screen name="DeliverRegisterThree" component={DeliverRegisterThree} />
-
-           <Stack.Screen name="DeliverRegisterFour" component={DeliverRegisterFour} />
-
-           
-           {/** <Stack.Screen name="BottomRoutes" component={BottomRoutes} />*/} 
-
-        </Stack.Navigator>
-    )}
+      <Stack.Screen name="Home" component={BottomRoutes} />
+      <Stack.Screen name="DeliverHomeTab" component={DeliverRoutes} />
+      {/* ✅ Home agora é o BottomRoutes que tem o Drawer */}
+      
+      <Stack.Screen name="Onboarding" component={Onboarding} />
+      <Stack.Screen name="InputPhoneNumber" component={InputPhoneNumber} />
+      <Stack.Screen name="VerifycationNumber" component={VerifycationNumber} />
+      <Stack.Screen name="ChoiceMode" component={ChoiceMode} />
+      <Stack.Screen name="ClientRegister" component={ClientRegister} />
+      <Stack.Screen name="ClientRegisterEmail" component={ClientRegisterEmail} />
+      <Stack.Screen name="LocationPermission" component={LocationPermission} />
+      <Stack.Screen name="DeliverRegister" component={DeliverRegister} />
+      <Stack.Screen name="DeliverRegisterTwo" component={DeliverRegisterTwo} />
+      <Stack.Screen name="DeliverRegisterThree" component={DeliverRegisterThree} />
+      <Stack.Screen name="DeliverRegisterFour" component={DeliverRegisterFour} />
+      <Stack.Screen name="FirstRegistrationStatus" component={FirstRegistrationStatus} />
+      <Stack.Screen name="SecundRegistrationStatus" component={SecundRegistrationStatus} />
+      <Stack.Screen name="ThirdRegistrationStatus" component={ThirdRegistrationStatus} />
+      <Stack.Screen name="AccessConfig" component={AccessConfig} />
+    </Stack.Navigator>
+  );
+}

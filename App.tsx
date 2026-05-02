@@ -12,6 +12,8 @@ import { Outfit_300Light, Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBol
 
 import Routes from './src/routes/index.routes';
 
+import Map from 'react-native-maps';
+
 const MyTheme = {
   ...DefaultTheme,
   colors: {

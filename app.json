@@ -16,11 +16,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.bazaapplication.ios"
     },
-
     "scheme": "baza-application",
-    
     "android": {
       "package": "com.bazaapplication.android",
+      "googleMapsApiKey": "AIzaSyCS49i-iw50bsLu-qta5K4aAl0HwMekXOU",
       "edgeToEdgeEnabled": true,
       "permissions": [
         "ACCESS_COARSE_LOCATION",
@@ -42,23 +41,21 @@
     "plugins": [
       "expo-font",
       "expo-location",
-      "expo-web-browser", 
+      "expo-web-browser",
       [
         "expo-notifications",
         {
           "icon": "./assets/notification_icon.png",
           "color": "#2D60FF",
           "defaultChannel": "default",
-          "sounds": [
-            "./assets/notification_sound.wav"
-          ],
+          "sounds": ["./assets/notification_sound.wav"],
           "enableBackgroundRemoteNotifications": false
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "O Baza precisa de aceder às suas fotos para carregar a sua imagem de perfil e documentos de identificação.",
+          "photosPermission": "O Baza precisa de aceder às suas fotos para carregar a sua imagem de perfil.",
           "cameraPermission": "O Baza precisa de aceder à câmara para capturar a sua foto de perfil."
         }
       ],
@@ -69,7 +66,6 @@
         }
       ]
     ],
-    
     "extra": {
       "eas": {
         "projectId": "7fdef0ed-cc06-4aa8-a836-99feaaad7df6"

@@ -1,29 +1,40 @@
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import React from 'react';
+import { createDrawerNavigator } from '@react-navigation/drawer';
 
-import Onboarding from '../pages/auth/onboarding/onboarding';
-import InputPhoneNumber from '../pages/auth/withNumber/withNumber';
-import VerifycationNumber from '../pages/auth/verifycationNumer/verification';
-import ClientRegister from '../pages/client/clientRegister/clientRegister/clientRegister';
-import ChoiceMode from '../pages/auth/UserMode/userMode';
-import DeliverRegister from '../pages/deliver/deliverRegister/screenOne/one';
-import DeliverRegisterTwo from '../pages/deliver/deliverRegister/screenTwo/two';
-import DeliverRegisterThree from '../pages/deliver/deliverRegister/screenThree/three';
-import DeliverRegisterFour from '../pages/deliver/deliverRegister/screenFour/four';
+import ClientHome from '../pages/client/mainClient/home';
+import Profile from '../pages/client/mainClient/profile';
+import History from '../pages/client/mainClient/history';
+import Security from '../pages/client/mainClient/security';
+import Help from '../pages/client/mainClient/help';
+import Settings from '../pages/client/mainClient/settings';
 
-const Tab = createBottomTabNavigator();
+import DrawerContent from '../components/modules/client/mainClient/drawer';
+
+const Drawer = createDrawerNavigator();
 
 export default function BottomRoutes() {
-    return (
-            <Tab.Navigator
-            >
-                <Tab.Screen
-                    name="Onboarding"
-                    component={Onboarding}
-                />
-                <Tab.Screen
-                    name="InputPhoneNumber"
-                    component={InputPhoneNumber}
-                />
-            </Tab.Navigator>
-    );
+  return (
+    <Drawer.Navigator
+      drawerContent={(props) => <DrawerContent {...props} />}
+      screenOptions={{
+        headerShown: false,
+        drawerType: 'slide',
+        drawerStyle: {
+          width: '75%',
+          backgroundColor: '#1F2933',
+        },
+        overlayColor: '#00000060',
+       /* sceneContainerStyle: {
+          backgroundColor: '#1F2933',
+        }, */
+      }}
+    >
+      <Drawer.Screen name="Home" component={ClientHome} />
+      <Drawer.Screen name="Profile" component={Profile} />
+      <Drawer.Screen name="History" component={History} />
+      <Drawer.Screen name="Security" component={Security} />
+      <Drawer.Screen name="Help" component={Help} />
+      <Drawer.Screen name="Settings" component={Settings} />
+    </Drawer.Navigator>
+  );
 }

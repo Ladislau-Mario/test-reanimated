@@ -1,8 +1,6 @@
 import * as React from 'react';
-//import React,{ useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, Alert,  } from 'react-native';
+import { View, Text, Image, TouchableOpacity } from 'react-native';
 import { useNavigation } from "@react-navigation/native";
-import { LinearGradient } from 'expo-linear-gradient';
 import { Octicons, MaterialIcons } from '@expo/vector-icons';
 
 // Componentes e Estilos do Baza
@@ -10,126 +8,114 @@ import BackgroundWrapper from '../../../components/layout/background/bgscreen';
 import { themes } from '../../../global/themes';
 import { styles } from "./style";
 import { Button } from '../../../components/common/button/button';
-
-import * as Google from 'expo-auth-session/providers/google';
-import * as WebBrowser from 'expo-web-browser';
-
-//FIREBASE 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { auth } from '../../../../firebaseConfig'; 
-import { GoogleAuthProvider, onAuthStateChanged,signInWithCredential, signInWithPopup } from "firebase/auth";
 import { GradientButton } from '../../../components/common/GradientButton/gradientButton';
 
-//API do Axios para pegarmos os dados para o Back-End
-import axios from 'axios';
+// Google Sign-In 2025
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+
+// Firebase
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { auth } from '../../../../firebaseConfig';
+import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
+
+// API
 import api from '../../../components/modules/services/api/api';
 
-import { makeRedirectUri } from 'expo-auth-session';
-
-  WebBrowser.maybeCompleteAuthSession();
-
-  export default function Onboarding() {
-
-  const navigation = useNavigation<any>();
-
-  const [userInfo, setUserInfo] = React.useState();
- const [request, response, promptAsync] = Google.useAuthRequest({
+// Configura o Google Sign-In uma vez
+GoogleSignin.configure({
   webClientId: "358855325316-labl2pan8a9qaoq2rbjajfr42d8u0t7s.apps.googleusercontent.com",
-  androidClientId: "645562949183-o2nuc9ki2ddpnmbsukic0bpaeppfdco0.apps.googleusercontent.com",
-  iosClientId: "645562949183-vo99sqhor5p4h5288mjltkhilpa190mh.apps.googleusercontent.com",
-  responseType: "id_token",
-  redirectUri: "https://baza-application-4e83f.firebaseapp.com/__/auth/handler",
+  offlineAccess: true,
 });
 
-// ✅ Adiciona isto temporariamente
-React.useEffect(() => {
-  if (request) {
-    console.log("REDIRECT URI USADO:", request.redirectUri);
-  }
-}, [request]);
+export default function Onboarding() {
+  const navigation = useNavigation<any>();
 
-
-
-/*
- React.useEffect(() => {
-  if (response?.type === "success") {
-    const { id_token } = response.params;
-    const credential = GoogleAuthProvider.credential(id_token);
+  /*
+  const handleGoogleSignIn = async () => {
+  try {
+    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+    console.log("Play Services OK");
     
-    signInWithCredential(auth, credential)
-      .then(() => {
-        console.log("Login no Firebase com sucesso!");
-        navigation.navigate('ChoiceMode'); // Ou a tela que desejas
-      })
-      .catch((error) => {
-        console.log("Erro ao validar no Firebase:", error);
-      });
-  }
-}, [response]);
-*/
-
-React.useEffect(() => {
-  if (response?.type === "success") {
-    const id_token = response.params.id_token || response.authentication?.idToken;
-    const credential = GoogleAuthProvider.credential(id_token);
+    const userInfo = await GoogleSignin.signIn();
+    console.log("USER INFO:", JSON.stringify(userInfo));
     
-    signInWithCredential(auth, credential)
-      .then(async (userCredential) => {
-        const user = userCredential.user;
+    // ✅ Sem servidor — navega directamente
+    navigation.navigate('ChoiceMode');
 
-        const userData = {
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-          token: id_token 
-        };
+  } catch (error: any) {
+    if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+      console.log("Cancelado");
+    } else {
+      console.log("Erro Google Sign-In:", error);
+    }
+  }
+};
+ */  
+  const handleGoogleSignIn = async () => {
+  try {
+    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+    console.log("Play Services OK");
+    
+    const userInfo = await GoogleSignin.signIn();
+    console.log("USER INFO:", JSON.stringify(userInfo));
+    
+    const { idToken } = await GoogleSignin.getTokens();
+      
+      // Pega o token e autentica no Firebase
+      const credential = GoogleAuthProvider.credential(idToken);
+      const userCredential = await signInWithCredential(auth, credential);
+      const user = userCredential.user;
 
-        try {
-          // CHAMADA AO TEU BACK-END (Usando o IP 192.168.8.199)
-          // O back-end deve retornar se o user é novo ou não
-          const res = await api.post('/auth/google', userData);
-          
-          await AsyncStorage.setItem('@Baza:user', JSON.stringify(userData));
+      const userData = {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        token: idToken,
+      };
 
-          if (res.data.isNewUser) {
-            // Se for novo, vai escolher se é Cliente ou Motoqueiro
-            navigation.navigate('ChoiceMode');
-          } else {
-            // Se já tem conta, vai direto para o mapa
-            navigation.navigate('Home');
-          }
-          
-        } catch (error) {
-          console.log("Erro no servidor de Luanda:", error);
-          // Caso o servidor falhe, mandamos para ChoiceMode por segurança
+      try {
+        const res = await api.post('/auth/google', userData);
+        await AsyncStorage.setItem('@Baza:user', JSON.stringify(userData));
+
+        if (res.data.isNewUser) {
           navigation.navigate('ChoiceMode');
+        } else {
+          navigation.navigate('Home');
         }
-      })
-      .catch((error) => {
-        console.log("Erro Firebase:", error);
-      });
-  }
-}, [response]);
+      } catch (error) {
+        console.log("Erro no servidor:", error);
+        navigation.navigate('ChoiceMode');
+      }
 
-
+    } catch (error: any) {
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        console.log("Utilizador cancelou o login");
+      } else if (error.code === statusCodes.IN_PROGRESS) {
+        console.log("Login já em progresso");
+      } else {
+        console.log("Erro Google Sign-In:", error);
+      }
+    }
+  };
+ 
   return (
     <BackgroundWrapper>
       <View style={styles.container}>
         
         {/* 1. CABEÇALHO */}
         <View style={styles.header}>
-           <View style={styles.themeContent}>
-              <TouchableOpacity style={styles.themeButton}>
-                <MaterialIcons name="light" size={20} color={themes.colors.text.primary} />
-              </TouchableOpacity>
-           </View>
-           <View style={styles.logoContent}>
-                <Image 
-                  source={require('../../../assets/logo.png')} 
-                  style={styles.logo} 
-                  resizeMode="contain"
-              />
-            </View> 
+          <View style={styles.themeContent}>
+            <TouchableOpacity style={styles.themeButton}>
+              <MaterialIcons name="light" size={20} color={themes.colors.text.primary} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.logoContent}>
+            <Image 
+              source={require('../../../assets/logo.png')} 
+              style={styles.logo} 
+              resizeMode="contain"
+            />
+          </View> 
         </View>
 
         {/* 2. TEXTO CENTRAL */}
@@ -151,22 +137,20 @@ React.useEffect(() => {
           <Button 
             text="Continuar com Telefone"
             onPress={() => navigation.navigate('InputPhoneNumber')} 
-        />
+          />
 
           <GradientButton 
-          text='Continuar com Google'
-          onPress={() => promptAsync()}
-          activeOpacity={0.8}
-          // PASSA A IMAGEM COMO ÍCONE
-         icon={
-        <Image 
-          source={require('../../../assets/googleLogo.png')} // Caminho correto
-          style={styles.googleLogo} 
-          resizeMode="contain"
-        />
-      }
-    />
-         
+            text='Continuar com Google'
+            onPress={handleGoogleSignIn}
+            activeOpacity={0.8}
+            icon={
+              <Image 
+                source={require('../../../assets/googleLogo.png')}
+                style={styles.googleLogo} 
+                resizeMode="contain"
+              />
+            }
+          />
 
           <View style={styles.footerTextContent}>
             <Text style={styles.footerText}>

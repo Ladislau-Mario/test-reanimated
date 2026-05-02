@@ -152,4 +152,4 @@ const styles = StyleSheet.create({
     fontFamily: themes.fonts.poppinsMedium,
     fontSize: 16,
   }
-});
+}); 
