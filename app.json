@@ -16,6 +16,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.bazaapplication.ios"
     },
+
+    "scheme": "baza-application",
+    
     "android": {
       "package": "com.bazaapplication.android",
       "edgeToEdgeEnabled": true,
@@ -64,10 +67,9 @@
         {
           "iCloudContainerEnvironment": "Production"
         }
-      ],
-      "expo-web-browser"
+      ]
     ],
-    "scheme": "baza-application",
+    
     "extra": {
       "eas": {
         "projectId": "7fdef0ed-cc06-4aa8-a836-99feaaad7df6"

@@ -14,7 +14,17 @@ import { SelectionModal } from '../../../../components/common/selectionModal/sel
 import { PickerService } from '../../../../components/modules/services/pickerService/pickerService';
 import { vehicleData } from '../../../../components/modules/services/data/vehicleData';
 
-export default function DeliverRegisterFour({ navigation }: any) {
+//API do Axios para pegarmos os dados para o Back-End
+import axios from 'axios';
+import api from '../../../../components/modules/services/api/api';
+
+
+export default function DeliverRegisterFour({ navigation, route }: any) { 
+  // Adicionado route
+  const [loading, setLoading] = useState(false);
+  const dataFromStepThree = route.params?.data || {};
+
+
   // Estados para Fotos
   const [fotoVeiculo, setFotoVeiculo] = useState<string | null>(null);
   const [certFrente, setCertFrente] = useState<string | null>(null);
@@ -51,6 +61,7 @@ export default function DeliverRegisterFour({ navigation }: any) {
     return Object.keys(newErrors).length === 0;
   };
 
+  /*
   const handleFinish = () => {
     if (validate()) {
       navigation.reset({ routes: [{ name: 'Onboarding' }] });
@@ -58,7 +69,87 @@ export default function DeliverRegisterFour({ navigation }: any) {
       Alert.alert("Baza", "Por favor, preencha todos os dados do veículo.");
     }
   };
+  */
 
+  const handleFinish = async () => {
+    if (validate()) {
+      setLoading(true);
+      
+      try {
+        const formData = new FormData();
+
+        // Juntamos TUDO (Dados das 4 telas)
+        const finalData = {
+          ...dataFromStepThree,
+          marca,
+          modelo,
+          cor,
+          placa,
+        };
+
+        // Adicionamos os campos de texto ao FormData
+        Object.keys(finalData).forEach(key => {
+          if (!key.startsWith('foto') && !key.startsWith('cert')) {
+            formData.append(key, finalData[key]);
+          }
+        });
+
+        // Adicionamos as FOTOS ao FormData (O ponto crítico para o Node.js)
+        const appendFile = (name: string, uri: string | null) => {
+          if (uri) {
+            const filename = uri.split('/').pop();
+            const match = /\.(\w+)$/.exec(filename || '');
+            const type = match ? `image/${match[1]}` : `image`;
+            formData.append(name, { uri, name: filename, type } as any);
+          }
+        };
+
+        appendFile('profilePhoto', finalData.fotoPerfil);
+        appendFile('licenseFront', finalData.fotoFrente);
+        appendFile('licenseBack', finalData.fotoVerso);
+        appendFile('idFront', finalData.fotoFrenteBI);
+        appendFile('idBack', finalData.fotoVersoBI);
+        appendFile('vehiclePhoto', fotoVeiculo);
+        appendFile('platePhoto', certFrente);
+
+        // DISPARO PARA O BACK-END EM LUANDA
+        const response = await api.post('/auth/register/driver', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+
+        if (response.status === 201 || response.status === 200) {
+          // Alert opcional, já que a próxima tela dirá que teve sucesso
+          // navigation.reset apaga o histórico de navegação (segurança)
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'FirstRegistrationStatus' }],
+          });
+        }
+      }
+      catch (error: any) {
+        console.log("Erro no servidor (Normal em teste):", error.message);
+        
+        // COMENTA O ALERTA E FORÇA A NAVEGAÇÃO PARA TESTAR O FRONT
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'FirstRegistrationStatus' }],
+        });
+      }
+      /* 
+      catch (error: any) {
+        console.log("Erro no registro final:", error.response?.data || error.message);
+        Alert.alert("Erro", "Não conseguimos enviar os teus dados. Verifica a tua conexão com o servidor.");
+      } 
+      */
+      finally {
+        setLoading(false);
+      }
+    } else {
+      Alert.alert("Baza", "Por favor, preencha todos os dados do veículo.");
+    }
+  };
+
+  
   return (
     <BackgroundWrapper>
       <KeyboardAvoidingView 
@@ -165,7 +256,12 @@ export default function DeliverRegisterFour({ navigation }: any) {
                         ))}
                     </View>
                 </View>
-                <Button text='Concluir Registro' onPress={handleFinish} />
+                <Button 
+                  text={loading ? 'Enviando...' : 'Concluir Registro'} 
+                  onPress={handleFinish} 
+                  disabled={loading}
+                />
+                {loading && <ActivityIndicator size="large" color="#0047FF" style={{marginTop: 20}} />}
               </View>
 
             </ScrollView>

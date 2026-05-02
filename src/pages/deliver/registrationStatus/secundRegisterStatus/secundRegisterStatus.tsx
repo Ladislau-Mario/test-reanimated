@@ -5,8 +5,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { TimelineStep } from '../../../../components/modules/deliver/StatusCardDeliver/timelineStep/TimelineStep';
 import { themes } from '../../../../global/themes';
 import { Button } from '../../../../components/common/button/button';
+import { useNavigation } from "@react-navigation/native";
 
 export default function SecundRegistrationStatus() {
+    const navigation = useNavigation<any>(); // Usa o hook para garantir que o objeto existe
+  
   return (
     <BackgroundWrapper>
       <View style={styles.mainContainer}>
@@ -55,9 +58,9 @@ export default function SecundRegistrationStatus() {
         {/* Botão de Ação Inferior */}
         <View style={styles.footer}>
             <Button
-                text = "Vá configurar o acesso"
-              //  onPress={handleRequestLocation} 
-                textStyle={{ fontFamily: themes.fonts.poppinsSemi, fontSize: 17 }} 
+                text = "Aguarde os resultados"
+                onPress={() => navigation.navigate('ThirdRegistrationStatus')} 
+                textStyle={{ fontFamily: themes.fonts.poppinsMedium, fontSize: 18 }} 
                         
             />
         </View>

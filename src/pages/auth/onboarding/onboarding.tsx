@@ -24,7 +24,7 @@ import { GradientButton } from '../../../components/common/GradientButton/gradie
 import axios from 'axios';
 import api from '../../../components/modules/services/api/api';
 
-
+import { makeRedirectUri } from 'expo-auth-session';
 
   WebBrowser.maybeCompleteAuthSession();
 
@@ -33,16 +33,22 @@ import api from '../../../components/modules/services/api/api';
   const navigation = useNavigation<any>();
 
   const [userInfo, setUserInfo] = React.useState();
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    // O ID que aparece na tua foto do Firebase (Configuração do SDK da Web)
-    webClientId: "645562949183-0jrttkiclip93eqs63lqhrm9nqevd533.apps.googleusercontent.com",
-    
-    // IDs das plataformas (já tens estes)
-    androidClientId: "645562949183-o2nuc9ki2ddpnmbsukic0bpaeppfdco0.apps.googleusercontent.com",
-    iosClientId: "645562949183-vo99sqhor5p4h5288mjltkhilpa190mh.apps.googleusercontent.com",
-    
-    responseType: "id_token",
-  });
+ const [request, response, promptAsync] = Google.useAuthRequest({
+  webClientId: "358855325316-labl2pan8a9qaoq2rbjajfr42d8u0t7s.apps.googleusercontent.com",
+  androidClientId: "645562949183-o2nuc9ki2ddpnmbsukic0bpaeppfdco0.apps.googleusercontent.com",
+  iosClientId: "645562949183-vo99sqhor5p4h5288mjltkhilpa190mh.apps.googleusercontent.com",
+  responseType: "id_token",
+  redirectUri: "https://baza-application-4e83f.firebaseapp.com/__/auth/handler",
+});
+
+// ✅ Adiciona isto temporariamente
+React.useEffect(() => {
+  if (request) {
+    console.log("REDIRECT URI USADO:", request.redirectUri);
+  }
+}, [request]);
+
+
 
 /*
  React.useEffect(() => {
@@ -64,7 +70,7 @@ import api from '../../../components/modules/services/api/api';
 
 React.useEffect(() => {
   if (response?.type === "success") {
-    const { id_token } = response.params;
+    const id_token = response.params.id_token || response.authentication?.idToken;
     const credential = GoogleAuthProvider.credential(id_token);
     
     signInWithCredential(auth, credential)

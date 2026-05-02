@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
     width: '100%', 
   },
   buttonText: {
-    fontFamily: themes.fonts.poppinsRegular,
+    fontFamily: themes.fonts.poppinsMedium,
     fontSize: 16,
   }
 });

@@ -56,9 +56,9 @@ export default function ThirdRegistrationStatus() {
         <View style={styles.footer}>
             <Button
                
-                text = "Aguarde os resultados"
+                text = "Ir para o Painel"
               //  onPress={handleRequestLocation} 
-                textStyle={{ fontFamily: themes.fonts.poppinsSemi, fontSize: 17 }} 
+                textStyle={{ fontFamily: themes.fonts.poppinsMedium, fontSize: 18 }} 
                 disabled
                         
             />

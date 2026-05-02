@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, StyleSheet, Text, ScrollView, Alert } from 'react-native';
 import * as Location from 'expo-location'; 
 import BackgroundWrapper from '../../../components/layout/background/bgscreen';
 import { PermissionCard } from '../../../components/modules/deliver/PermissionCard/premissionCard';
 import { themes } from '../../../global/themes';
 import { Button } from '../../../components/common/button/button';
 import { registerForPushNotificationsAsync } from '../../../components/modules/services/notification/notification';
+import { useNavigation } from "@react-navigation/native";
 
 export default function AccessConfig() {
-  // Controle de fluxo: 1-Notificações, 2-Localização, 3-Bateria, 4-Concluído
+  const navigation = useNavigation<any>();
+  
+  // Agora o fluxo é: 1-Notificações, 2-Localização, 3-Concluído
   const [step, setStep] = useState(1);
 
   // Lógica para o Passo 1: Notificações
@@ -17,7 +20,6 @@ export default function AccessConfig() {
       const token = await registerForPushNotificationsAsync();
       
       if (token) {
-        // Se deu permissão (mesmo que o token varie), avança
         setStep(2);
       } else {
         Alert.alert(
@@ -51,7 +53,7 @@ export default function AccessConfig() {
       
       console.log("Localização aceita:", location);
 
-      Alert.alert("Sucesso", "Localização ativada com sucesso!");
+      // Avança para o estado final onde o botão de conclusão aparece
       setStep(3);
 
     } catch (error) {
@@ -96,26 +98,33 @@ export default function AccessConfig() {
             onAction={handleRequestLocation} 
           />
 
-          {/* Passo 3 */}
+          {/* Passo 3 - Removido/Comentado para o MVP 
           <PermissionCard 
             title="Desempenho e Bateria"
             iconName="battery-half-outline"
-            description="Garante que o Baza não seja interrompido. Nota: Com bateria abaixo de 15%, o sistema pausa as entregas."
+            description="Garante que o Baza não seja interrompido."
             isExpanded={step === 3}
             isCompleted={step > 3}
             onPress={() => step >= 3 && setStep(3)}
             onAction={() => setStep(4)}
-          />
+          /> 
+          */}
 
           <View style={{ height: 100 }} />
         </ScrollView>
 
-        {step > 3 && (
+        {/* O botão aparece quando o step chega a 3 (após localização) */}
+        {step >= 3 && (
           <View style={styles.footer}>
             <Button 
-              text="Concluir e Ir para o Painel" 
+              text="Concluir e Ver Status" 
               textStyle={{ fontFamily: themes.fonts.poppinsMedium, fontSize: 17 }}
-              onPress={() => Alert.alert("Sucesso", "Configuração concluída!")}
+              onPress={() => {
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'SecundRegistrationStatus' }],
+                });
+              }}
             />
           </View>
         )}
@@ -125,22 +134,15 @@ export default function AccessConfig() {
 }
 
 const styles = StyleSheet.create({
-  mainContainer: { 
-    flex: 1 
-  },
-  header: { 
-    paddingTop: 60, 
-    marginBottom: 30 
-  },
+  mainContainer: { flex: 1 },
+  header: { paddingTop: 60, marginBottom: 30 },
   headerTitle: { 
     fontFamily: themes.fonts.poppinsMedium, 
     fontSize: 36, 
     color: '#FFF', 
     lineHeight: 46 
   },
-  scrollContent: { 
-    paddingTop: 20 
-  },
+  scrollContent: { paddingTop: 20 },
   footer: { 
     position: 'absolute',
     bottom: 0,

@@ -5,8 +5,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { TimelineStep } from '../../../../components/modules/deliver/StatusCardDeliver/timelineStep/TimelineStep';
 import { themes } from '../../../../global/themes';
 import { Button } from '../../../../components/common/button/button';
+import { useNavigation } from "@react-navigation/native";
 
-export default function FirstRegistrationStatus() {
+
+export default function FirstRegistrationStatus() { // Remove o { navigation } das props
+  const navigation = useNavigation<any>(); // Usa o hook para garantir que o objeto existe
+
   return (
     <BackgroundWrapper>
       <View style={styles.mainContainer}>
@@ -55,10 +59,9 @@ export default function FirstRegistrationStatus() {
         {/* Botão de Ação Inferior */}
         <View style={styles.footer}>
             <Button
-                text = "Vá configurar o acesso"
-              //  onPress={handleRequestLocation} 
-                textStyle={{ fontFamily: themes.fonts.poppinsSemi, fontSize: 17 }} 
-                        
+              text="Vá configurar o acesso"
+              onPress={() => navigation.navigate('AccessConfig')} 
+              textStyle={{ fontFamily: themes.fonts.poppinsMedium, fontSize: 18 }} 
             />
         </View>
       </View>

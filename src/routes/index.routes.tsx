@@ -50,28 +50,26 @@ export default function Routes(){
             };
             },
         }}
->
-  
+><Stack.Screen name="SecundRegistrationStatus" component={SecundRegistrationStatus} />
+     <Stack.Screen name="AccessConfig" component={AccessConfig} /> 
   <Stack.Screen name="Onboarding" component={Onboarding} />
   <Stack.Screen name=" Home" component={ Home} />
 
   <Stack.Screen name="FirstRegistrationStatus" component={FirstRegistrationStatus} />
-  <Stack.Screen name=" AccessConfig" component={ AccessConfig} /> 
+
 
            <Stack.Screen name="LocationPermission" component={LocationPermission} />
 
             
             <Stack.Screen name="ThirdRegistrationStatus" component={ThirdRegistrationStatus} />
            
-            <Stack.Screen name="SecundRegistrationStatus" component={SecundRegistrationStatus} />
-
             
+
+           
 
             
 
           
-
-            
 
             
            
