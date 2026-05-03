@@ -44,17 +44,16 @@ export default function Routes() {
         }),
       }}
     >
-
-
-      <Stack.Screen name="Home" component={BottomRoutes} />
+<Stack.Screen name="ClientRegister" component={ClientRegister} />
       <Stack.Screen name="DeliverHomeTab" component={DeliverRoutes} />
-      {/* ✅ Home agora é o BottomRoutes que tem o Drawer */}
+      <Stack.Screen name="Home" component={BottomRoutes} />
       
+      {/* ✅ Home agora é o BottomRoutes que tem o Drawer */}
       <Stack.Screen name="Onboarding" component={Onboarding} />
       <Stack.Screen name="InputPhoneNumber" component={InputPhoneNumber} />
       <Stack.Screen name="VerifycationNumber" component={VerifycationNumber} />
       <Stack.Screen name="ChoiceMode" component={ChoiceMode} />
-      <Stack.Screen name="ClientRegister" component={ClientRegister} />
+      
       <Stack.Screen name="ClientRegisterEmail" component={ClientRegisterEmail} />
       <Stack.Screen name="LocationPermission" component={LocationPermission} />
       <Stack.Screen name="DeliverRegister" component={DeliverRegister} />

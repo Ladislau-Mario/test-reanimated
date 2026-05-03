@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { 
-  View, Text, KeyboardAvoidingView, Platform, ScrollView 
+  View, Text, KeyboardAvoidingView, Platform, ScrollView, Alert 
 } from 'react-native';
 import { useNavigation } from "@react-navigation/native";
+import { Ionicons } from '@expo/vector-icons';
 
 import BackgroundWrapper from '../../../../components/layout/background/bgscreen';
 import { themes } from '../../../../global/themes';
@@ -11,21 +12,18 @@ import { styles } from './style';
 import { InputRegister } from '../../../../components/modules/client/inputRegister/inputRegister';
 import { Button } from '../../../../components/common/button/button';
 import { ButtonBack } from '../../../../components/common/backButton/backButton';
-import { Ionicons } from '@expo/vector-icons';
 
 export default function ClientRegister() {
   const navigation = useNavigation<any>();
 
+  // Estados dos dados (agora com sobrenome separado para o back-end)
   const [nome, setNome] = useState('');
+  const [sobrenome, setSobrenome] = useState('');
   const [email, setEmail] = useState('');
   const [dataNascimento, setDataNascimento] = useState('');
 
-  // Agora armazenamos a MENSAGEM de erro
-  const [errors, setErrors] = useState({
-    nome: '',
-    email: '',
-    data: ''
-  });
+  // Mensagens de erro por campo
+  const [errors, setErrors] = useState<any>({});
 
   const primaryColor = themes.colors.primary;
   const errorColor = '#FF4D4D';
@@ -36,18 +34,15 @@ export default function ClientRegister() {
     if (cleaned.length > 2) formatted = `${cleaned.slice(0, 2)}/${cleaned.slice(2)}`;
     if (cleaned.length > 4) formatted = `${cleaned.slice(0, 2)}/${cleaned.slice(2, 4)}/${cleaned.slice(4, 8)}`;
     setDataNascimento(formatted);
-    setErrors(prev => ({ ...prev, data: '' }));
+    if (errors.data) setErrors({ ...errors, data: '' });
   };
 
-  // VALIDAÇÃO DE DATA E IDADE (Mínimo 16 anos)
   const validateData = (dateStr: string) => {
     if (dateStr.length !== 10) return "Data incompleta";
-
     const [day, month, year] = dateStr.split('/').map(Number);
     const birthDate = new Date(year, month - 1, day);
     const today = new Date();
 
-    // Verifica se a data é válida (ex: evita 31/02)
     if (birthDate.getFullYear() !== year || birthDate.getMonth() !== month - 1 || birthDate.getDate() !== day) {
       return "Data inválida";
     }
@@ -56,30 +51,53 @@ export default function ClientRegister() {
     const m = today.getMonth() - birthDate.getMonth();
     if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
 
-    if (age < 16) return "Idade mímima aceite 16";
+    if (age < 16) return "Idade mínima aceite 16";
     return "";
   };
 
- const handleConfirmar = () => {
-    // Regex: Permite letras maiúsculas, minúsculas, acentos e espaços.
+  const handleConfirmar = () => {
     const nameRegex = /^[A-Za-zÀ-ÖØ-öø-ÿ\s]+$/;
+    let newErrors: any = {};
 
-    const emailErr = /\S+@\S+\.\S+/.test(email) ? "" : "E-mail inválido";
-    
-    // Validação do Nome
-    let nomeErr = "";
+    // Validação Nome
     if (nome.trim().length < 3) {
-      nomeErr = "Nome muito curto";
+      newErrors.nome = "Nome muito curto";
     } else if (!nameRegex.test(nome)) {
-      nomeErr = "O nome deve conter apenas letras";
+      newErrors.nome = "Apenas letras";
     }
 
+    // Validação Sobrenome (Pedido pelo back-end)
+    if (sobrenome.trim().length < 2) {
+      newErrors.sobrenome = "Sobrenome muito curto";
+    } else if (!nameRegex.test(sobrenome)) {
+      newErrors.sobrenome = "Apenas letras";
+    }
+
+    // Validação Email
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      newErrors.email = "E-mail inválido";
+    }
+
+    // Validação Data
     const dataErr = validateData(dataNascimento);
+    if (dataErr) newErrors.data = dataErr;
 
-    setErrors({ nome: nomeErr, email: emailErr, data: dataErr });
+    setErrors(newErrors);
 
-    if (!nomeErr && !emailErr && !dataErr) {
-      navigation.reset({ routes: [{ name: 'Onboarding' }] });
+    if (Object.keys(newErrors).length === 0) {
+      // Objeto pronto para o Back-end / Próxima tela
+      const clientData = {
+        nome,
+        sobrenome,
+        email,
+        dataNascimento,
+        role: 'client' // Identificador do tipo de usuário
+      };
+
+      // Navega para a próxima etapa passando os dados coletados
+      navigation.navigate('ClientRegisterEmail', { data: clientData });
+    } else {
+      Alert.alert("Baza", "Por favor, corrija os erros no formulário.");
     }
   };
 
@@ -108,21 +126,29 @@ export default function ClientRegister() {
         
           <View style={styles.groupedInputCard}>
             <InputRegister 
-                placeholder="Nome completo"
-                value={nome}
-                autoCapitalize="words" // Coloca a primeira letra de cada nome em maiúscula
-                textContentType="name" // Otimiza o teclado para nomes
-                onChangeText={(t) => { setNome(t); setErrors(p => ({...p, nome: ''})) }}
-                errorMessage={errors.nome}
-                icon={<Ionicons name="person-outline" size={18} color={errors.nome ? errorColor : primaryColor} />}
-              />
+              placeholder="Nome"
+              value={nome}
+              autoCapitalize="words"
+              onChangeText={(t) => { setNome(t); setErrors((p: any) => ({...p, nome: ''})) }}
+              errorMessage={errors.nome}
+              icon={<Ionicons name="person-outline" size={18} color={errors.nome ? errorColor : primaryColor} />}
+            />
+
+            <InputRegister 
+              placeholder="Sobrenome"
+              value={sobrenome}
+              autoCapitalize="words"
+              onChangeText={(t) => { setSobrenome(t); setErrors((p: any) => ({...p, sobrenome: ''})) }}
+              errorMessage={errors.sobrenome}
+              icon={<Ionicons name="person-outline" size={18} color={errors.sobrenome ? errorColor : primaryColor} />}
+            />
 
             <InputRegister 
               placeholder="Endereço de e-mail"
               keyboardType="email-address"
               autoCapitalize="none"
               value={email}
-              onChangeText={(t) => { setEmail(t); setErrors(p => ({...p, email: ''})) }}
+              onChangeText={(t) => { setEmail(t); setErrors((p: any) => ({...p, email: ''})) }}
               errorMessage={errors.email}
               icon={<Ionicons name="mail-outline" size={18} color={errors.email ? errorColor : primaryColor} />}
             />
