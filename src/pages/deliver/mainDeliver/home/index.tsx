@@ -10,6 +10,7 @@ import {
   Animated,
   PanResponder,
   Platform,
+  ScrollView,
 } from 'react-native';
 import MapView, { PROVIDER_GOOGLE, Marker, Polyline } from 'react-native-maps';
 import * as Location from 'expo-location';
@@ -18,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { TAB_BAR_HEIGHT } from '../../../../components/common/curvedTabs/index';
 
-// Quando o backend estiver pronto, descomentar:
+// Backend — descomentar quando o colega ligar os endpoints:
 // import axios from 'axios';
 // import api from '../../../../components/modules/services/api/api';
 
@@ -31,25 +32,18 @@ type LatLng = { latitude: number; longitude: number };
 type DeliveryOrder = {
   id: string;
   clientName: string;
-  clientAvatar?: string;
   pickupAddress: string;
   pickupCoords: LatLng;
   deliveryAddress: string;
   deliveryCoords: LatLng;
   distanceKm: number;
-  basePrice: number; // em Kz
+  basePrice: number;
   timeoutSeconds: number;
 };
 
-type DeliverPhase =
-  | 'idle'          // offline ou online sem pedido
-  | 'orders'        // lista de pedidos disponíveis
-  | 'pickup'        // a caminho do cliente (fase 1)
-  | 'delivery'      // a caminho do destino (fase 2)
-  | 'rating';       // modal de avaliação final
+type DeliverPhase = 'idle' | 'orders' | 'pickup' | 'delivery' | 'rating';
 
-// ─── Mock de dados (backend substituirá isto) ─────────────────────────────────
-// Estrutura espelha o que o backend vai enviar via api.get('/orders/available')
+// ─── Mock (substituir por api.get('/orders/available')) ───────────────────────
 
 const MOCK_ORDERS: DeliveryOrder[] = [
   {
@@ -59,7 +53,7 @@ const MOCK_ORDERS: DeliveryOrder[] = [
     pickupCoords: { latitude: -8.9150, longitude: 13.1820 },
     deliveryAddress: 'Kilamba, Luanda',
     deliveryCoords: { latitude: -8.9800, longitude: 13.2200 },
-    distanceKm: 1.8,
+    distanceKm: 1.80,
     basePrice: 1800,
     timeoutSeconds: 40,
   },
@@ -70,7 +64,7 @@ const MOCK_ORDERS: DeliveryOrder[] = [
     pickupCoords: { latitude: -8.9050, longitude: 13.3700 },
     deliveryAddress: 'Miramar, Luanda',
     deliveryCoords: { latitude: -8.8200, longitude: 13.2300 },
-    distanceKm: 4.2,
+    distanceKm: 4.20,
     basePrice: 2500,
     timeoutSeconds: 40,
   },
@@ -81,124 +75,148 @@ const MOCK_ORDERS: DeliveryOrder[] = [
     pickupCoords: { latitude: -8.8350, longitude: 13.2850 },
     deliveryAddress: 'Rangel, Luanda',
     deliveryCoords: { latitude: -8.8150, longitude: 13.2700 },
-    distanceKm: 2.3,
+    distanceKm: 2.30,
     basePrice: 2000,
     timeoutSeconds: 40,
   },
 ];
 
+// ─── Rota simulada entre dois pontos (interpolação linear) ────────────────────
+
+function buildSimRoute(from: LatLng, to: LatLng, steps = 12): LatLng[] {
+  return Array.from({ length: steps + 1 }, (_, i) => ({
+    latitude: from.latitude + (to.latitude - from.latitude) * (i / steps),
+    longitude: from.longitude + (to.longitude - from.longitude) * (i / steps),
+  }));
+}
+
 // ─── Map style ────────────────────────────────────────────────────────────────
 
-const mapStyle = [
+const MAP_STYLE = [
   { elementType: 'geometry', stylers: [{ color: '#303E4D' }] },
   { elementType: 'labels.text.fill', stylers: [{ color: '#FFFFFF' }] },
   { elementType: 'labels.text.stroke', stylers: [{ color: '#1F2933' }] },
-  { elementType: 'labels.icon', stylers: [{ visibility: 'on' }] },
   { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#3D5166' }] },
   { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#1F2933' }] },
   { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#FFFFFF' }] },
-  { featureType: 'road', elementType: 'labels.text.stroke', stylers: [{ color: '#1F2933' }] },
   { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#4A6080' }] },
-  { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#FFFFFF' }] },
   { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#1a2a3a' }] },
-  { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#FFFFFF' }] },
-  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#1e3a28' }] },
   { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#2A3A4A' }] },
   { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#FFFFFF' }] },
   { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#2A3A4A' }] },
   { featureType: 'administrative', elementType: 'labels.text.fill', stylers: [{ color: '#FFFFFF' }] },
 ];
 
-// ─── Marcadores personalizados ────────────────────────────────────────────────
+// ─── Marcadores ───────────────────────────────────────────────────────────────
 
-function PickupPin() {
+function PickupMarker() {
   return (
-    <View style={mk.wrapper}>
-      <View style={[mk.circle, { backgroundColor: '#FF2D55', borderColor: '#fff' }]} />
+    <View style={{ alignItems: 'center', justifyContent: 'center', width: 28, height: 28 }}>
+      <View style={{
+        width: 20, height: 20, borderRadius: 10,
+        backgroundColor: '#FF2D55', borderWidth: 3, borderColor: '#fff',
+        shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 4, elevation: 6,
+      }} />
     </View>
   );
 }
 
-function DeliveryPin() {
+function DeliveryMarker() {
   return (
-    <View style={mk.wrapper}>
-      <View style={[mk.circle, { backgroundColor: '#2D60FF', borderColor: '#fff' }]} />
+    <View style={{ alignItems: 'center', justifyContent: 'center', width: 28, height: 28 }}>
+      <View style={{
+        width: 20, height: 20, borderRadius: 10,
+        backgroundColor: '#2D60FF', borderWidth: 3, borderColor: '#fff',
+        shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 4, elevation: 6,
+      }} />
     </View>
   );
 }
 
-// ─── Timer countdown ──────────────────────────────────────────────────────────
+// ─── Countdown timer ──────────────────────────────────────────────────────────
 
 function CountdownTimer({ seconds, onExpire }: { seconds: number; onExpire: () => void }) {
   const [remaining, setRemaining] = useState(seconds);
-  const progress = useRef(new Animated.Value(1)).current;
+  const anim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    Animated.timing(progress, {
-      toValue: 0,
-      duration: seconds * 1000,
-      useNativeDriver: false,
-    }).start();
-
-    const interval = setInterval(() => {
-      setRemaining((r) => {
-        if (r <= 1) { clearInterval(interval); onExpire(); return 0; }
+    Animated.timing(anim, { toValue: 0, duration: seconds * 1000, useNativeDriver: false }).start();
+    const t = setInterval(() => {
+      setRemaining(r => {
+        if (r <= 1) { clearInterval(t); onExpire(); return 0; }
         return r - 1;
       });
     }, 1000);
-    return () => clearInterval(interval);
+    return () => clearInterval(t);
   }, []);
 
-  const width = progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+  const barWidth = anim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+  const mins = Math.floor(remaining / 60);
+  const secs = remaining % 60;
 
   return (
-    <View style={cd.container}>
-      <Text style={cd.num}>{String(remaining).padStart(2, '0')}s</Text>
-      <View style={cd.bar}>
-        <Animated.View style={[cd.fill, { width }]} />
+    <View style={{ alignItems: 'flex-end', gap: 3, minWidth: 52 }}>
+      <Text style={{ color: '#fff', fontFamily: 'Poppins_700Bold', fontSize: 15 }}>
+        {String(mins).padStart(2, '0')}:{String(secs).padStart(2, '0')}
+      </Text>
+      <View style={{ width: 52, height: 3, backgroundColor: '#ffffff20', borderRadius: 2, overflow: 'hidden' }}>
+        <Animated.View style={{ height: 3, backgroundColor: '#CB1D00', borderRadius: 2, width: barWidth }} />
       </View>
     </View>
   );
 }
 
-// ─── Swipe-to-complete button ─────────────────────────────────────────────────
+// ─── Swipe-to-complete (teu estilo: → Completar ✓) ───────────────────────────
 
-function SwipeComplete({ onComplete, label = 'Completar' }: { onComplete: () => void; label?: string }) {
+function SwipeComplete({ onComplete }: { onComplete: () => void }) {
+  const TRACK_W = SCREEN_WIDTH - 40; // padding horizontal
+  const HANDLE_W = 56;
+  const MAX_X = TRACK_W - HANDLE_W - 8;
+
   const translateX = useRef(new Animated.Value(0)).current;
-  const trackWidth = SCREEN_WIDTH - 40 - 32 - 56; // padding + track padding + handle
-  const completed = useRef(false);
+  const done = useRef(false);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onPanResponderMove: (_, g) => {
-        const x = Math.max(0, Math.min(g.dx, trackWidth));
-        translateX.setValue(x);
-      },
-      onPanResponderRelease: (_, g) => {
-        if (g.dx >= trackWidth * 0.75 && !completed.current) {
-          completed.current = true;
-          Animated.timing(translateX, { toValue: trackWidth, duration: 150, useNativeDriver: true }).start(() => {
-            onComplete();
-          });
-        } else {
-          Animated.spring(translateX, { toValue: 0, useNativeDriver: true }).start();
-        }
-      },
-    })
-  ).current;
-
-  const bg = translateX.interpolate({
-    inputRange: [0, trackWidth],
+  const bgColor = translateX.interpolate({
+    inputRange: [0, MAX_X],
     outputRange: ['#CB1D00', '#16a34a'],
     extrapolate: 'clamp',
   });
 
+  const checkOpacity = translateX.interpolate({
+    inputRange: [MAX_X * 0.6, MAX_X],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+
+  const pan = useRef(PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onPanResponderMove: (_, g) => {
+      translateX.setValue(Math.max(0, Math.min(g.dx, MAX_X)));
+    },
+    onPanResponderRelease: (_, g) => {
+      if (g.dx >= MAX_X * 0.75 && !done.current) {
+        done.current = true;
+        Animated.timing(translateX, { toValue: MAX_X, duration: 120, useNativeDriver: true }).start(() => onComplete());
+      } else {
+        Animated.spring(translateX, { toValue: 0, useNativeDriver: true, bounciness: 8 }).start();
+      }
+    },
+  })).current;
+
   return (
-    <Animated.View style={[sc.track, { backgroundColor: bg }]}>
-      <Text style={sc.label}>{label}</Text>
-      <Animated.View style={[sc.handle, { transform: [{ translateX }] }]} {...panResponder.panHandlers}>
-        <Ionicons name="checkmark" size={22} color="#CB1D00" />
+    <Animated.View style={[sw.track, { backgroundColor: bgColor }]}>
+      {/* Label central */}
+      <Text style={sw.label}>Completar</Text>
+      {/* Check do lado direito */}
+      <Animated.View style={[sw.checkIcon, { opacity: checkOpacity }]}>
+        <Ionicons name="checkmark" size={20} color="#fff" />
+      </Animated.View>
+      {/* Handle arrastável */}
+      <Animated.View
+        style={[sw.handle, { transform: [{ translateX }] }]}
+        {...pan.panHandlers}
+      >
+        <Ionicons name="arrow-forward" size={22} color="#CB1D00" />
       </Animated.View>
     </Animated.View>
   );
@@ -214,34 +232,177 @@ function RatingModal({ visible, onClose }: { visible: boolean; onClose: () => vo
         <View style={rm.sheet}>
           <View style={rm.handle} />
           <View style={rm.avatar}>
-            <Ionicons name="person" size={36} color="#2D60FF" />
+            <Ionicons name="person" size={38} color="#2D60FF" />
           </View>
           <Text style={rm.title}>Entrega concluída!</Text>
           <Text style={rm.sub}>Como foi a experiência com este cliente?</Text>
           <View style={rm.stars}>
-            {[1, 2, 3, 4, 5].map((s) => (
+            {[1, 2, 3, 4, 5].map(s => (
               <TouchableOpacity key={s} onPress={() => setStars(s)}>
-                <Ionicons
-                  name={s <= stars ? 'star' : 'star-outline'}
-                  size={36}
-                  color={s <= stars ? '#f59e0b' : '#ffffff30'}
-                />
+                <Ionicons name={s <= stars ? 'star' : 'star-outline'} size={38} color={s <= stars ? '#f59e0b' : '#ffffff25'} />
               </TouchableOpacity>
             ))}
           </View>
-          <TouchableOpacity
-            style={[rm.btn, stars === 0 && rm.btnDisabled]}
-            disabled={stars === 0}
-            onPress={onClose}
-          >
+          <TouchableOpacity style={[rm.btn, !stars && rm.btnDisabled]} disabled={!stars} onPress={onClose}>
             <Text style={rm.btnText}>Confirmar</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={rm.skip} onPress={onClose}>
-            <Text style={rm.skipText}>Saltar</Text>
+          <TouchableOpacity onPress={onClose} style={{ marginTop: 14 }}>
+            <Text style={{ color: '#ffffff30', fontFamily: 'Poppins_400Regular', fontSize: 13 }}>Saltar</Text>
           </TouchableOpacity>
         </View>
       </View>
     </Modal>
+  );
+}
+
+// ─── Order card ───────────────────────────────────────────────────────────────
+
+function OrderCard({
+  order,
+  isOnline,
+  onAccept,
+  onIgnore,
+}: {
+  order: DeliveryOrder;
+  isOnline: boolean;
+  onAccept: (price: number) => void;
+  onIgnore: () => void;
+}) {
+  const [price, setPrice] = useState(order.basePrice);
+  const MIN_PRICE = Math.max(500, order.basePrice - 600);
+
+  return (
+    <View style={oc.card}>
+      {/* Cabeçalho: avatar + nome + distância + timer + ignorar */}
+      <View style={oc.header}>
+        <View style={oc.avatar}>
+          <Ionicons name="person" size={20} color="#CB1D00" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={oc.name}>{order.clientName}</Text>
+          <Text style={oc.dist}>{order.distanceKm.toFixed(2)} km</Text>
+        </View>
+        <CountdownTimer seconds={order.timeoutSeconds} onExpire={onIgnore} />
+        <TouchableOpacity style={oc.ignoreBtn} onPress={onIgnore}>
+          <Text style={oc.ignoreTxt}>Ignorar</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Rota */}
+      <View style={oc.route}>
+        <View style={oc.routeRow}>
+          <View style={[oc.dot, { backgroundColor: '#2D60FF' }]} />
+          <Text style={oc.routeTxt} numberOfLines={1}>{order.pickupAddress}</Text>
+        </View>
+        <View style={oc.routeConnector} />
+        <View style={oc.routeRow}>
+          <View style={[oc.dot, { backgroundColor: '#FF2D55' }]} />
+          <Text style={oc.routeTxt} numberOfLines={1}>{order.deliveryAddress}</Text>
+        </View>
+      </View>
+
+      <View style={oc.divider} />
+
+      {/* Preço ajustável */}
+      <View style={oc.priceRow}>
+        <TouchableOpacity
+          style={oc.priceBtn}
+          onPress={() => setPrice(p => Math.max(MIN_PRICE, p - 200))}
+        >
+          <Text style={oc.priceBtnTxt}>-200</Text>
+        </TouchableOpacity>
+        <Text style={oc.priceVal}>{price.toLocaleString('pt-AO')} Kz</Text>
+        <TouchableOpacity style={oc.priceBtn} onPress={() => setPrice(p => p + 200)}>
+          <Text style={oc.priceBtnTxt}>+200</Text>
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity
+        style={[oc.acceptBtn, !isOnline && oc.acceptBtnDisabled]}
+        disabled={!isOnline}
+        onPress={() => isOnline && onAccept(price)}
+        activeOpacity={0.85}
+      >
+        <Text style={oc.acceptTxt}>Aceitar</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+// ─── Delivery phase content ───────────────────────────────────────────────────
+
+function PhaseContent({
+  phaseNum,
+  order,
+  simDistance,
+  expanded,
+  onToggle,
+  onComplete,
+}: {
+  phaseNum: 1 | 2;
+  order: DeliveryOrder;
+  simDistance: number;
+  expanded: boolean;
+  onToggle: () => void;
+  onComplete: () => void;
+}) {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setElapsed(e => e + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const timeStr = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')}`;
+  const addr = phaseNum === 1 ? order.pickupAddress : order.deliveryAddress;
+  const label = phaseNum === 1 ? 'Pegar encomenda' : 'Destino';
+
+  return (
+    <View>
+      {/* Header */}
+      <View style={ph.header}>
+        <View style={ph.badge}>
+          <Text style={ph.badgeNum}>{phaseNum}</Text>
+        </View>
+        <Text style={ph.phaseLabel}>{label}</Text>
+        <Text style={ph.timer}>{timeStr}</Text>
+        <TouchableOpacity style={ph.toggleBtn} onPress={onToggle}>
+          <Text style={ph.toggleTxt}>{expanded ? 'Esconder' : 'Mostrar'}</Text>
+          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={13} color="#9ca3af" />
+        </TouchableOpacity>
+      </View>
+
+      <Text style={ph.addr} numberOfLines={1}>{addr}</Text>
+
+      {/* Acções expandidas */}
+      {expanded && (
+        <View style={ph.actions}>
+          <TouchableOpacity style={ph.altRoute}>
+            <Text style={ph.altRouteTxt}>Escolha outro caminho</Text>
+            <Ionicons name="location-outline" size={13} color="#9ca3af" />
+          </TouchableOpacity>
+          <View style={ph.grid}>
+            <TouchableOpacity style={[ph.gridCard, { backgroundColor: '#f59e0b' }]}>
+              <Text style={ph.gridLabel}>Chamada</Text>
+              <Ionicons name="call-outline" size={22} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity style={[ph.gridCard, { backgroundColor: '#253040', borderWidth: 1, borderColor: '#ffffff12' }]}>
+              <Text style={[ph.gridLabel, { color: '#9ca3af' }]}>Pausar</Text>
+              <Ionicons name="pause-outline" size={22} color="#9ca3af" />
+            </TouchableOpacity>
+            <TouchableOpacity style={[ph.gridCard, { backgroundColor: '#16a34a' }]}>
+              <Text style={ph.gridLabel}>Chat</Text>
+              <Ionicons name="chatbubble-outline" size={22} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Swipe */}
+      <View style={{ marginTop: 14 }}>
+        <SwipeComplete onComplete={onComplete} />
+      </View>
+    </View>
   );
 }
 
@@ -255,25 +416,31 @@ export default function DeliverHome() {
   const [phase, setPhase] = useState<DeliverPhase>('idle');
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
   const [activeOrder, setActiveOrder] = useState<DeliveryOrder | null>(null);
-  const [activeOrderPrice, setActiveOrderPrice] = useState(0);
+  const [simDistance, setSimDistance] = useState(0);
+  const [routeCoords, setRouteCoords] = useState<LatLng[]>([]);
   const [snapIndex, setSnapIndex] = useState(0);
-  const [simDistance, setSimDistance] = useState(0); // km simulado até ao destino
+  const [expanded, setExpanded] = useState(false);
   const [ratingVisible, setRatingVisible] = useState(false);
 
   const bottomSheetRef = useRef<BottomSheet>(null);
   const mapRef = useRef<MapView>(null);
 
+  // Snap points: baixo, médio, alto
   const snapPoints = useMemo(() => {
-    // Baixo, médio — nunca cobrimos tudo (sem snap alto aqui)
-    const snap1 = Math.round((SCREEN_HEIGHT - TAB_BAR_HEIGHT) * 0.22);
-    const snap2 = Math.round((SCREEN_HEIGHT - TAB_BAR_HEIGHT) * 0.50);
-    return [snap1, snap2];
+    const avail = SCREEN_HEIGHT - TAB_BAR_HEIGHT;
+    return [
+      Math.round(avail * 0.22),  // 0 — baixo
+      Math.round(avail * 0.50),  // 1 — médio
+      Math.round(avail * 0.82),  // 2 — alto
+    ];
   }, []);
 
-  // Botão de localização acompanha o sheet
-  const locationBtnBottom = snapIndex === 0
-    ? snapPoints[0] + TAB_BAR_HEIGHT + 12
-    : snapPoints[1] + TAB_BAR_HEIGHT + 12;
+  // Botão localização — acompanha o sheet (some no snap alto)
+  const locBtnBottom = useMemo(() => {
+    if (snapIndex === 0) return snapPoints[0] + TAB_BAR_HEIGHT + 10;
+    if (snapIndex === 1) return snapPoints[1] + TAB_BAR_HEIGHT + 10;
+    return null; // some
+  }, [snapIndex, snapPoints]);
 
   useEffect(() => {
     (async () => {
@@ -284,9 +451,9 @@ export default function DeliverHome() {
     })();
   }, []);
 
-  // Quando fica online, carrega pedidos disponíveis
-  // Backend: api.get('/orders/available') → substituir MOCK_ORDERS
+  // Toggle online/offline
   const handleToggleOnline = useCallback(() => {
+    if (phase !== 'idle' && phase !== 'orders') return; // não pode desligar a meio de entrega
     const next = !isOnline;
     setIsOnline(next);
     if (next) {
@@ -295,106 +462,117 @@ export default function DeliverHome() {
         setOrders(MOCK_ORDERS);
         setPhase('orders');
         bottomSheetRef.current?.snapToIndex(1);
-      }, 1500);
+      }, 800);
     } else {
       setPhase('idle');
       setOrders([]);
       bottomSheetRef.current?.snapToIndex(0);
     }
-  }, [isOnline]);
+  }, [isOnline, phase]);
 
   // Aceitar pedido
-  // Backend: api.post('/orders/:id/accept')
-  const handleAcceptOrder = useCallback((order: DeliveryOrder, price: number) => {
+  const handleAccept = useCallback((order: DeliveryOrder, price: number) => {
+    if (!isOnline) return; // segurança extra
     // TODO backend: api.post(`/orders/${order.id}/accept`, { agreedPrice: price })
     setActiveOrder(order);
-    setActiveOrderPrice(price);
     setSimDistance(order.distanceKm);
-    setPhase('pickup');
-    bottomSheetRef.current?.snapToIndex(1);
-    mapRef.current?.fitToCoordinates(
-      [order.pickupCoords, order.deliveryCoords],
-      { edgePadding: { top: 80, right: 40, bottom: snapPoints[1] + TAB_BAR_HEIGHT + 20, left: 40 }, animated: true }
+    const route = buildSimRoute(
+      location ? { latitude: location.coords.latitude, longitude: location.coords.longitude } : order.pickupCoords,
+      order.pickupCoords,
     );
-  }, [snapPoints]);
+    setRouteCoords(route);
+    setPhase('pickup');
+    setExpanded(false);
+    bottomSheetRef.current?.snapToIndex(1);
+    setTimeout(() => {
+      mapRef.current?.fitToCoordinates(
+        [order.pickupCoords, order.deliveryCoords],
+        { edgePadding: { top: 80, right: 40, bottom: snapPoints[1] + TAB_BAR_HEIGHT + 20, left: 40 }, animated: true }
+      );
+    }, 300);
+  }, [isOnline, location, snapPoints]);
 
-  // Ignorar pedido (timeout ou manual)
-  const handleIgnoreOrder = useCallback((orderId: string) => {
-    const remaining = orders.filter(o => o.id !== orderId);
-    setOrders(remaining);
-    if (remaining.length === 0) {
+  // Ignorar pedido
+  const handleIgnore = useCallback((id: string) => {
+    const rest = orders.filter(o => o.id !== id);
+    setOrders(rest);
+    if (rest.length === 0) {
       setPhase('idle');
       setIsOnline(false);
+      bottomSheetRef.current?.snapToIndex(0);
     }
   }, [orders]);
 
-  // Completar fase 1 (chegou ao cliente / pegou a encomenda)
-  // Backend: api.post('/orders/:id/picked')
+  // Cancelar (só fase pickup)
+  const handleCancel = useCallback(() => {
+    // TODO backend: api.post(`/orders/${activeOrder?.id}/cancel`)
+    setActiveOrder(null);
+    setRouteCoords([]);
+    setSimDistance(0);
+    setOrders(MOCK_ORDERS);
+    setPhase('orders');
+    bottomSheetRef.current?.snapToIndex(1);
+  }, [activeOrder]);
+
+  // Completar fase 1 (pegou a encomenda)
   const handlePickupComplete = useCallback(() => {
     if (!activeOrder) return;
     // TODO backend: api.post(`/orders/${activeOrder.id}/picked`)
-    setSimDistance(activeOrder.distanceKm * 0.8); // reset para distância ao destino
+    const route = buildSimRoute(activeOrder.pickupCoords, activeOrder.deliveryCoords);
+    setRouteCoords(route);
+    setSimDistance(activeOrder.distanceKm * 0.8);
     setPhase('delivery');
-  }, [activeOrder]);
+    setExpanded(false);
+    setTimeout(() => {
+      mapRef.current?.fitToCoordinates(
+        [activeOrder.pickupCoords, activeOrder.deliveryCoords],
+        { edgePadding: { top: 80, right: 40, bottom: snapPoints[1] + TAB_BAR_HEIGHT + 20, left: 40 }, animated: true }
+      );
+    }, 300);
+  }, [activeOrder, snapPoints]);
 
   // Completar fase 2 (entregou)
-  // Backend: api.post('/orders/:id/delivered')
   const handleDeliveryComplete = useCallback(() => {
     if (!activeOrder) return;
     // TODO backend: api.post(`/orders/${activeOrder.id}/delivered`)
     setPhase('rating');
+    setRatingVisible(true);
   }, [activeOrder]);
 
-  // Cancelar entrega (só na fase pickup)
-  // Backend: api.post('/orders/:id/cancel')
-  const handleCancel = useCallback(() => {
-    if (!activeOrder) return;
-    // TODO backend: api.post(`/orders/${activeOrder.id}/cancel`)
-    setActiveOrder(null);
-    setPhase('orders');
-    setOrders(MOCK_ORDERS);
-  }, [activeOrder]);
-
-  // Simulação de aproximação (botão dev — remove em produção)
+  // Simular aproximação — REMOVER EM PRODUÇÃO
   const handleSimApproach = useCallback(() => {
-    setSimDistance(d => Math.max(0, parseFloat((d - 0.3).toFixed(1))));
+    setSimDistance(d => parseFloat(Math.max(0, d - 0.3).toFixed(2)));
   }, []);
 
-  // Fechamento do rating → reset
+  // Fechar rating → reset
   const handleRatingClose = useCallback(() => {
     setRatingVisible(false);
     setActiveOrder(null);
-    setActiveOrderPrice(0);
+    setRouteCoords([]);
     setSimDistance(0);
-    setPhase('idle');
-    setIsOnline(false);
     setOrders([]);
+    setIsOnline(false);
+    setPhase('idle');
     bottomSheetRef.current?.snapToIndex(0);
   }, []);
 
-  useEffect(() => {
-    if (phase === 'rating') setRatingVisible(true);
-  }, [phase]);
-
   if (!location) {
     return (
-      <View style={styles.loading}>
+      <View style={s.loading}>
         <ActivityIndicator size="large" color="#CB1D00" />
-        <Text style={styles.loadingText}>{errorMsg ?? 'A obter localização...'}</Text>
+        <Text style={s.loadingTxt}>{errorMsg ?? 'A obter localização...'}</Text>
       </View>
     );
   }
 
-  const showLocationBtn = snapIndex < 2; // sempre visível nos snaps baixo e médio
-
   return (
-    <View style={styles.container}>
+    <View style={s.container}>
       {/* ── MAPA ── */}
       <MapView
         ref={mapRef}
-        style={styles.map}
+        style={s.map}
         provider={PROVIDER_GOOGLE}
-        customMapStyle={mapStyle}
+        customMapStyle={MAP_STYLE}
         initialRegion={{
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
@@ -404,51 +582,56 @@ export default function DeliverHome() {
         showsUserLocation
         showsMyLocationButton={false}
       >
+        {/* Rota simulada */}
+        {routeCoords.length > 1 && (
+          <Polyline coordinates={routeCoords} strokeColor="#2D60FF" strokeWidth={4} lineDashPattern={[0]} />
+        )}
+        {/* Marcador de recolha */}
         {activeOrder && (phase === 'pickup' || phase === 'delivery') && (
-          <>
-            <Marker coordinate={activeOrder.pickupCoords} anchor={{ x: 0.5, y: 0.5 }}>
-              <PickupPin />
-            </Marker>
-            <Marker coordinate={activeOrder.deliveryCoords} anchor={{ x: 0.5, y: 0.5 }}>
-              <DeliveryPin />
-            </Marker>
-          </>
+          <Marker coordinate={activeOrder.pickupCoords} anchor={{ x: 0.5, y: 0.5 }}>
+            <PickupMarker />
+          </Marker>
+        )}
+        {/* Marcador de entrega */}
+        {activeOrder && (phase === 'pickup' || phase === 'delivery') && (
+          <Marker coordinate={activeOrder.deliveryCoords} anchor={{ x: 0.5, y: 0.5 }}>
+            <DeliveryMarker />
+          </Marker>
         )}
       </MapView>
 
-      {/* ── STATUS BUTTON ── */}
+      {/* ── STATUS BUTTON (centro topo) ── */}
       <TouchableOpacity
-        style={[styles.statusButton, isOnline ? styles.statusOnline : styles.statusOffline]}
+        style={[s.statusBtn, isOnline ? s.statusOn : s.statusOff]}
         onPress={handleToggleOnline}
-        disabled={phase !== 'idle' && phase !== 'orders'}
       >
-        <View style={[styles.statusDot, { backgroundColor: isOnline ? '#4ade80' : '#ffffff50' }]} />
-        <Text style={styles.statusText}>{isOnline ? 'Em linha' : 'Desligado'}</Text>
+        <View style={[s.statusDot, { backgroundColor: isOnline ? '#4ade80' : '#ffffff50' }]} />
+        <Text style={s.statusTxt}>{isOnline ? 'Em linha' : 'Desligado'}</Text>
       </TouchableOpacity>
 
-      {/* ── CANCELAR (só fase pickup) ── */}
+      {/* ── CANCELAR (esquerda, só pickup) ── */}
       {phase === 'pickup' && (
-        <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
-          <Ionicons name="close" size={14} color="#fff" />
-          <Text style={styles.cancelBtnText}>Cancelar entrega</Text>
+        <TouchableOpacity style={s.cancelBtn} onPress={handleCancel}>
+          <Ionicons name="close" size={13} color="#fff" />
+          <Text style={s.cancelTxt}>Cancelar entrega</Text>
         </TouchableOpacity>
       )}
 
-      {/* ── DISTÂNCIA NO MAPA (fases pickup e delivery) ── */}
+      {/* ── DISTÂNCIA + BOTÃO SIM (direita, fases activas) ── */}
       {(phase === 'pickup' || phase === 'delivery') && (
-        <View style={styles.distanceBadge}>
-          <Text style={styles.distanceBadgeText}>{simDistance.toFixed(2)} km</Text>
-          {/* Botão de simulação — REMOVER EM PRODUÇÃO */}
-          <TouchableOpacity style={styles.simBtn} onPress={handleSimApproach}>
-            <Text style={styles.simBtnText}>→ sim</Text>
+        <View style={s.distBadge}>
+          <Text style={s.distTxt}>{simDistance.toFixed(2)} km</Text>
+          {/* BOTÃO DE SIMULAÇÃO — REMOVER EM PRODUÇÃO */}
+          <TouchableOpacity style={s.simBtn} onPress={handleSimApproach}>
+            <Text style={s.simTxt}>sim →</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      {/* ── BOTÃO MINHA LOCALIZAÇÃO — acompanha sheet ── */}
-      {showLocationBtn && (
+      {/* ── BOTÃO MINHA LOCALIZAÇÃO — cola no topo do sheet ── */}
+      {locBtnBottom !== null && (
         <TouchableOpacity
-          style={[styles.locationButton, { bottom: locationBtnBottom }]}
+          style={[s.locBtn, { bottom: locBtnBottom }]}
           onPress={() => mapRef.current?.animateToRegion({
             latitude: location.coords.latitude,
             longitude: location.coords.longitude,
@@ -456,8 +639,8 @@ export default function DeliverHome() {
             longitudeDelta: 0.01,
           }, 800)}
         >
-          <Ionicons name="navigate" size={18} color="#2D60FF" />
-          <Text style={styles.locationText}>A minha localização</Text>
+          <Ionicons name="navigate" size={17} color="#2D60FF" />
+          <Text style={s.locTxt}>A minha localização</Text>
         </TouchableOpacity>
       )}
 
@@ -466,72 +649,77 @@ export default function DeliverHome() {
         ref={bottomSheetRef}
         index={0}
         snapPoints={snapPoints}
-        backgroundStyle={styles.sheetBackground}
-        handleIndicatorStyle={styles.sheetIndicator}
+        backgroundStyle={s.sheetBg}
+        handleIndicatorStyle={s.sheetHandle}
         onChange={setSnapIndex}
         style={{ marginBottom: TAB_BAR_HEIGHT }}
       >
         <BottomSheetScrollView
-          style={styles.sheetContent}
-          contentContainerStyle={{ paddingBottom: 24 }}
+          style={s.sheetContent}
+          contentContainerStyle={{ paddingBottom: 28 }}
           showsVerticalScrollIndicator={false}
         >
 
-          {/* ══ IDLE / ONLINE (sem pedidos) ══ */}
-          {(phase === 'idle') && (
-            <View style={styles.statsRow}>
-              <View style={styles.statCard}>
+          {/* IDLE */}
+          {phase === 'idle' && (
+            <View style={s.statsRow}>
+              <View style={s.statCard}>
                 <Ionicons name="wallet-outline" size={20} color="#85D5EB" />
-                <Text style={styles.statLabel}>Rendimento hoje</Text>
-                <Text style={styles.statValue}>12 000,00 Kz</Text>
+                <Text style={s.statLabel}>Rendimento hoje</Text>
+                <Text style={s.statValue}>12 000,00 Kz</Text>
               </View>
-              <View style={styles.statCard}>
+              <View style={s.statCard}>
                 <Ionicons name="flag-outline" size={20} color="#85D5EB" />
-                <Text style={styles.statLabel}>Objectivo</Text>
-                <View style={styles.progressBar}>
-                  <View style={[styles.progressFill, { width: '45%' }]} />
+                <Text style={s.statLabel}>Objectivo</Text>
+                <View style={s.progressBar}>
+                  <View style={[s.progressFill, { width: '45%' }]} />
                 </View>
-                <Text style={styles.progressText}>9 de 20 entregas</Text>
+                <Text style={s.progressTxt}>9 de 20 entregas</Text>
               </View>
             </View>
           )}
 
-          {/* ══ LISTA DE PEDIDOS ══ */}
+          {/* ORDERS */}
           {phase === 'orders' && (
             <>
-              <Text style={styles.sectionTitle}>Pedidos disponíveis</Text>
-              {orders.map((order) => (
+              <Text style={s.sectionTitle}>
+                {orders.length} {orders.length === 1 ? 'pedido disponível' : 'pedidos disponíveis'}
+              </Text>
+              {orders.map(o => (
                 <OrderCard
-                  key={order.id}
-                  order={order}
-                  onAccept={(price) => handleAcceptOrder(order, price)}
-                  onIgnore={() => handleIgnoreOrder(order.id)}
+                  key={o.id}
+                  order={o}
+                  isOnline={isOnline}
+                  onAccept={price => handleAccept(o, price)}
+                  onIgnore={() => handleIgnore(o.id)}
                 />
               ))}
               {orders.length === 0 && (
-                <Text style={styles.emptyText}>Nenhum pedido disponível. Aguarda...</Text>
+                <Text style={s.emptyTxt}>Nenhum pedido. Aguarda...</Text>
               )}
             </>
           )}
 
-          {/* ══ FASE 1: PICKUP ══ */}
+          {/* PICKUP */}
           {phase === 'pickup' && activeOrder && (
-            <DeliveryPhaseCard
+            <PhaseContent
               phaseNum={1}
-              phaseLabel="Pegar encomenda"
               order={activeOrder}
               simDistance={simDistance}
+              expanded={expanded}
+              onToggle={() => setExpanded(e => !e)}
               onComplete={handlePickupComplete}
             />
           )}
 
-          {/* ══ FASE 2: DELIVERY ══ */}
+          {/* DELIVERY */}
           {phase === 'delivery' && activeOrder && (
-            <DeliveryPhaseCard
+            <PhaseContent
               phaseNum={2}
-              phaseLabel="Entregar encomenda"
               order={activeOrder}
               simDistance={simDistance}
+              expanded={expanded}
+              onToggle={() => setExpanded(e => !e)}
               onComplete={handleDeliveryComplete}
             />
           )}
@@ -539,303 +727,187 @@ export default function DeliverHome() {
         </BottomSheetScrollView>
       </BottomSheet>
 
-      {/* ── RATING MODAL ── */}
+      {/* RATING */}
       <RatingModal visible={ratingVisible} onClose={handleRatingClose} />
     </View>
   );
 }
 
-// ─── Order card ───────────────────────────────────────────────────────────────
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
-function OrderCard({
-  order,
-  onAccept,
-  onIgnore,
-}: {
-  order: DeliveryOrder;
-  onAccept: (price: number) => void;
-  onIgnore: () => void;
-}) {
-  const [price, setPrice] = useState(order.basePrice);
-
-  return (
-    <View style={oc.card}>
-      {/* Header: cliente + timer */}
-      <View style={oc.header}>
-        <View style={oc.avatar}>
-          <Ionicons name="person" size={22} color="#2D60FF" />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={oc.clientName}>{order.clientName}</Text>
-          <Text style={oc.distText}>{order.distanceKm.toFixed(2)} km</Text>
-        </View>
-        <CountdownTimer seconds={order.timeoutSeconds} onExpire={onIgnore} />
-        <TouchableOpacity style={oc.ignoreBtn} onPress={onIgnore}>
-          <Text style={oc.ignoreBtnText}>Ignorar</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Endereços */}
-      <View style={oc.route}>
-        <View style={oc.routeRow}>
-          <View style={[oc.dot, { backgroundColor: '#2D60FF' }]} />
-          <Text style={oc.routeText} numberOfLines={1}>{order.pickupAddress}</Text>
-        </View>
-        <View style={oc.routeLine} />
-        <View style={oc.routeRow}>
-          <View style={[oc.dot, { backgroundColor: '#FF2D55' }]} />
-          <Text style={oc.routeText} numberOfLines={1}>{order.deliveryAddress}</Text>
-        </View>
-      </View>
-
-      <View style={oc.divider} />
-
-      {/* Preço ajustável */}
-      <View style={oc.priceRow}>
-        <TouchableOpacity
-          style={oc.priceBtn}
-          onPress={() => setPrice(p => Math.max(order.basePrice - 600, p - 200))}
-        >
-          <Text style={oc.priceBtnText}>-200</Text>
-        </TouchableOpacity>
-        <Text style={oc.priceValue}>{price.toLocaleString('pt-AO')} Kz</Text>
-        <TouchableOpacity style={oc.priceBtn} onPress={() => setPrice(p => p + 200)}>
-          <Text style={oc.priceBtnText}>+200</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Aceitar */}
-      <TouchableOpacity style={oc.acceptBtn} onPress={() => onAccept(price)}>
-        <Text style={oc.acceptBtnText}>Aceitar</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-// ─── Delivery phase card ──────────────────────────────────────────────────────
-
-function DeliveryPhaseCard({
-  phaseNum,
-  phaseLabel,
-  order,
-  simDistance,
-  onComplete,
-}: {
-  phaseNum: 1 | 2;
-  phaseLabel: string;
-  order: DeliveryOrder;
-  simDistance: number;
-  onComplete: () => void;
-}) {
-  const [elapsed, setElapsed] = useState(0);
-  const [expanded, setExpanded] = useState(false);
-
-  useEffect(() => {
-    const t = setInterval(() => setElapsed(e => e + 1), 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  const timeStr = `${String(Math.floor(elapsed / 60)).padStart(2, '0')}:${String(elapsed % 60).padStart(2, '0')}`;
-  const address = phaseNum === 1 ? order.pickupAddress : order.deliveryAddress;
-
-  return (
-    <View>
-      {/* Header da fase */}
-      <View style={dp.header}>
-        <View style={dp.badge}>
-          <Text style={dp.badgeNum}>{phaseNum}</Text>
-        </View>
-        <Text style={dp.phaseLabel}>{phaseLabel}</Text>
-        <Text style={dp.timer}>{timeStr}</Text>
-        <TouchableOpacity onPress={() => setExpanded(e => !e)} style={dp.toggleBtn}>
-          <Text style={dp.toggleText}>{expanded ? 'Esconder' : 'Mostrar'}</Text>
-          <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color="#9ca3af" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Endereço */}
-      <Text style={dp.address} numberOfLines={1}>{address}</Text>
-
-      {/* Acções expandidas */}
-      {expanded && (
-        <View style={dp.actions}>
-          <TouchableOpacity style={dp.routeBtn}>
-            <Text style={dp.routeBtnText}>Escolha outro caminho</Text>
-            <Ionicons name="location-outline" size={14} color="#9ca3af" />
-          </TouchableOpacity>
-          <View style={dp.actionGrid}>
-            <TouchableOpacity style={[dp.actionCard, { backgroundColor: '#f59e0b' }]}>
-              <Text style={dp.actionLabel}>Chamada</Text>
-              <Ionicons name="call-outline" size={22} color="#fff" />
-            </TouchableOpacity>
-            <TouchableOpacity style={[dp.actionCard, { backgroundColor: '#1F2933', borderWidth: 1, borderColor: '#ffffff15' }]}>
-              <Text style={[dp.actionLabel, { color: '#9ca3af' }]}>Pausar</Text>
-              <Ionicons name="pause-outline" size={22} color="#9ca3af" />
-            </TouchableOpacity>
-            <TouchableOpacity style={[dp.actionCard, { backgroundColor: '#16a34a' }]}>
-              <Text style={dp.actionLabel}>Chat</Text>
-              <Ionicons name="chatbubble-outline" size={22} color="#fff" />
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
-
-      {/* Swipe to complete */}
-      <View style={{ marginTop: 16 }}>
-        <SwipeComplete
-          onComplete={onComplete}
-          label={phaseNum === 1 ? 'Peguei a encomenda →' : 'Entrega concluída →'}
-        />
-      </View>
-    </View>
-  );
-}
-
-// ─── StyleSheets ─────────────────────────────────────────────────────────────
-
-const mk = StyleSheet.create({
-  wrapper: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-  circle: { width: 18, height: 18, borderRadius: 9, borderWidth: 3 },
-});
-
-const cd = StyleSheet.create({
-  container: { alignItems: 'flex-end', gap: 3 },
-  num: { color: '#9ca3af', fontFamily: 'Poppins_500Medium', fontSize: 12 },
-  bar: { width: 48, height: 3, backgroundColor: '#ffffff15', borderRadius: 2, overflow: 'hidden' },
-  fill: { height: 3, backgroundColor: '#CB1D00', borderRadius: 2 },
-});
-
-const sc = StyleSheet.create({
+const sw = StyleSheet.create({
   track: {
-    height: 56, borderRadius: 28, paddingHorizontal: 4,
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-    overflow: 'hidden', position: 'relative',
+    height: 58, borderRadius: 29,
+    paddingHorizontal: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    position: 'relative',
+    marginHorizontal: 0,
   },
-  label: { color: '#fff', fontFamily: 'Poppins_600SemiBold', fontSize: 15 },
+  label: {
+    color: '#fff',
+    fontFamily: 'Poppins_600SemiBold',
+    fontSize: 16,
+  },
+  checkIcon: {
+    position: 'absolute',
+    right: 18,
+  },
   handle: {
-    position: 'absolute', left: 4,
-    width: 48, height: 48, borderRadius: 24,
-    backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
-    elevation: 4,
+    position: 'absolute',
+    left: 4,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
 });
 
 const rm = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: '#00000080', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: '#1F2933', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 28, paddingBottom: 44, alignItems: 'center' },
-  handle: { width: 40, height: 4, backgroundColor: '#ffffff30', borderRadius: 2, marginBottom: 20, alignSelf: 'center' },
-  avatar: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#2D60FF15', alignItems: 'center', justifyContent: 'center', marginBottom: 14, borderWidth: 2, borderColor: '#2D60FF30' },
-  title: { fontSize: 18, color: '#fff', fontFamily: 'Poppins_700Bold', marginBottom: 6 },
-  sub: { fontSize: 13, color: '#9ca3af', fontFamily: 'Poppins_400Regular', textAlign: 'center', marginBottom: 20 },
-  stars: { flexDirection: 'row', gap: 10, marginBottom: 28 },
-  btn: { width: '100%', backgroundColor: '#CB1D00', borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
-  btnDisabled: { backgroundColor: '#CB1D0055' },
-  btnText: { color: '#fff', fontFamily: 'Poppins_600SemiBold', fontSize: 15 },
-  skip: { marginTop: 12 },
-  skipText: { color: '#ffffff40', fontFamily: 'Poppins_400Regular', fontSize: 13 },
+  overlay: { flex: 1, backgroundColor: '#00000085', justifyContent: 'flex-end' },
+  sheet: {
+    backgroundColor: '#1F2933',
+    borderTopLeftRadius: 26, borderTopRightRadius: 26,
+    padding: 28, paddingBottom: 44, alignItems: 'center',
+  },
+  handle: { width: 40, height: 4, backgroundColor: '#ffffff30', borderRadius: 2, marginBottom: 22, alignSelf: 'center' },
+  avatar: {
+    width: 74, height: 74, borderRadius: 37,
+    backgroundColor: '#2D60FF12', alignItems: 'center', justifyContent: 'center',
+    marginBottom: 16, borderWidth: 2, borderColor: '#2D60FF30',
+  },
+  title: { fontSize: 19, color: '#fff', fontFamily: 'Poppins_700Bold', marginBottom: 6 },
+  sub: { fontSize: 13, color: '#9ca3af', fontFamily: 'Poppins_400Regular', textAlign: 'center', marginBottom: 24 },
+  stars: { flexDirection: 'row', gap: 12, marginBottom: 30 },
+  btn: { width: '100%', backgroundColor: '#CB1D00', borderRadius: 16, paddingVertical: 16, alignItems: 'center' },
+  btnDisabled: { backgroundColor: '#CB1D0050' },
+  btnText: { color: '#fff', fontFamily: 'Poppins_600SemiBold', fontSize: 16 },
 });
 
 const oc = StyleSheet.create({
-  card: { backgroundColor: '#253040', borderRadius: 18, padding: 16, marginBottom: 12 },
+  card: { backgroundColor: '#253040', borderRadius: 20, padding: 16, marginBottom: 12 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
-  avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#2D60FF15', alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#2D60FF30' },
-  clientName: { fontSize: 14, color: '#fff', fontFamily: 'Poppins_600SemiBold' },
-  distText: { fontSize: 11, color: '#9ca3af', fontFamily: 'Poppins_400Regular' },
-  ignoreBtn: { backgroundColor: '#303E4D', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 6 },
-  ignoreBtnText: { color: '#9ca3af', fontFamily: 'Poppins_400Regular', fontSize: 12 },
-  route: { gap: 6 },
+  avatar: {
+    width: 44, height: 44, borderRadius: 22,
+    backgroundColor: '#CB1D0015', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: '#CB1D0030',
+  },
+  name: { fontSize: 14, color: '#fff', fontFamily: 'Poppins_600SemiBold' },
+  dist: { fontSize: 11, color: '#9ca3af', fontFamily: 'Poppins_400Regular', marginTop: 1 },
+  ignoreBtn: { backgroundColor: '#303E4D', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 7, marginLeft: 8 },
+  ignoreTxt: { color: '#9ca3af', fontFamily: 'Poppins_400Regular', fontSize: 12 },
+  route: { gap: 4 },
   routeRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   dot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
-  routeText: { flex: 1, fontSize: 13, color: '#c5cdd6', fontFamily: 'Poppins_400Regular' },
-  routeLine: { width: 2, height: 10, backgroundColor: '#ffffff20', marginLeft: 4 },
+  routeTxt: { flex: 1, fontSize: 13, color: '#c5cdd6', fontFamily: 'Poppins_400Regular' },
+  routeConnector: { width: 2, height: 10, backgroundColor: '#ffffff20', marginLeft: 4 },
   divider: { height: 1, backgroundColor: '#ffffff08', marginVertical: 14 },
   priceRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
-  priceBtn: { backgroundColor: '#303E4D', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
-  priceBtnText: { color: '#fff', fontFamily: 'Poppins_500Medium', fontSize: 13 },
-  priceValue: { fontSize: 20, color: '#fff', fontFamily: 'Poppins_700Bold' },
-  acceptBtn: { backgroundColor: '#2D60FF', borderRadius: 14, paddingVertical: 14, alignItems: 'center' },
-  acceptBtnText: { color: '#fff', fontFamily: 'Poppins_600SemiBold', fontSize: 15 },
+  priceBtn: { backgroundColor: '#303E4D', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 9 },
+  priceBtnTxt: { color: '#fff', fontFamily: 'Poppins_500Medium', fontSize: 13 },
+  priceVal: { fontSize: 20, color: '#fff', fontFamily: 'Poppins_700Bold' },
+  acceptBtn: { backgroundColor: '#2D60FF', borderRadius: 16, paddingVertical: 15, alignItems: 'center' },
+  acceptBtnDisabled: { backgroundColor: '#2D60FF40' },
+  acceptTxt: { color: '#fff', fontFamily: 'Poppins_600SemiBold', fontSize: 15 },
 });
 
-const dp = StyleSheet.create({
+const ph = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
-  badge: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#CB1D00', alignItems: 'center', justifyContent: 'center' },
-  badgeNum: { color: '#fff', fontFamily: 'Poppins_700Bold', fontSize: 13 },
+  badge: {
+    width: 30, height: 30, borderRadius: 15,
+    backgroundColor: '#CB1D00', alignItems: 'center', justifyContent: 'center',
+  },
+  badgeNum: { color: '#fff', fontFamily: 'Poppins_700Bold', fontSize: 14 },
   phaseLabel: { flex: 1, fontSize: 15, color: '#fff', fontFamily: 'Poppins_600SemiBold' },
-  timer: { fontSize: 16, color: '#fff', fontFamily: 'Poppins_700Bold' },
+  timer: { fontSize: 17, color: '#fff', fontFamily: 'Poppins_700Bold' },
   toggleBtn: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  toggleText: { fontSize: 11, color: '#9ca3af', fontFamily: 'Poppins_400Regular' },
-  address: { fontSize: 12, color: '#9ca3af', fontFamily: 'Poppins_400Regular', marginBottom: 10 },
-  actions: { gap: 10, marginTop: 10 },
-  routeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#253040', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10 },
-  routeBtnText: { fontSize: 12, color: '#9ca3af', fontFamily: 'Poppins_400Regular' },
-  actionGrid: { flexDirection: 'row', gap: 8 },
-  actionCard: { flex: 1, borderRadius: 14, padding: 14, alignItems: 'center', gap: 8 },
-  actionLabel: { fontSize: 12, color: '#fff', fontFamily: 'Poppins_500Medium' },
+  toggleTxt: { fontSize: 11, color: '#9ca3af', fontFamily: 'Poppins_400Regular' },
+  addr: { fontSize: 12, color: '#9ca3af', fontFamily: 'Poppins_400Regular', marginBottom: 10 },
+  actions: { gap: 10, marginTop: 8 },
+  altRoute: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#253040', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10,
+  },
+  altRouteTxt: { fontSize: 12, color: '#9ca3af', fontFamily: 'Poppins_400Regular' },
+  grid: { flexDirection: 'row', gap: 8 },
+  gridCard: { flex: 1, borderRadius: 16, padding: 14, alignItems: 'center', gap: 8 },
+  gridLabel: { fontSize: 12, color: '#fff', fontFamily: 'Poppins_500Medium' },
 });
 
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#1F2933' },
   map: { flex: 1 },
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#1F2933', gap: 12 },
-  loadingText: { color: '#fff', fontFamily: 'Poppins_500Medium', fontSize: 14 },
+  loadingTxt: { color: '#fff', fontFamily: 'Poppins_500Medium', fontSize: 14 },
 
-  statusButton: {
-    position: 'absolute', top: Platform.OS === 'ios' ? 54 : 42,
-    alignSelf: 'center', left: '50%', transform: [{ translateX: -56 }],
+  statusBtn: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 54 : 40,
+    alignSelf: 'center',
+    left: '50%',
+    transform: [{ translateX: -58 }],
     flexDirection: 'row', alignItems: 'center',
-    paddingHorizontal: 16, paddingVertical: 9,
-    borderRadius: 20, gap: 8, elevation: 8, zIndex: 10,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4,
+    paddingHorizontal: 16, paddingVertical: 10,
+    borderRadius: 22, gap: 8, elevation: 8, zIndex: 10,
   },
-  statusOnline: { backgroundColor: '#1a2e20' },
-  statusOffline: { backgroundColor: '#1F2933' },
+  statusOn: { backgroundColor: '#162312' },
+  statusOff: { backgroundColor: '#1F2933' },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusText: { color: '#FFFFFF', fontFamily: 'Poppins_500Medium', fontSize: 13 },
+  statusTxt: { color: '#fff', fontFamily: 'Poppins_500Medium', fontSize: 13 },
 
   cancelBtn: {
-    position: 'absolute', top: Platform.OS === 'ios' ? 54 : 42, left: 16,
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 54 : 40, left: 16,
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: '#1F2933', borderRadius: 20,
     paddingHorizontal: 12, paddingVertical: 9,
-    elevation: 5, zIndex: 10,
+    elevation: 6, zIndex: 10,
   },
-  cancelBtnText: { color: '#fff', fontFamily: 'Poppins_400Regular', fontSize: 12 },
+  cancelTxt: { color: '#fff', fontFamily: 'Poppins_400Regular', fontSize: 12 },
 
-  distanceBadge: {
-    position: 'absolute', top: Platform.OS === 'ios' ? 54 : 42, right: 16,
+  distBadge: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 54 : 40, right: 16,
     flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: '#1F2933', borderRadius: 20,
     paddingHorizontal: 14, paddingVertical: 9,
-    elevation: 5, zIndex: 10,
+    elevation: 6, zIndex: 10,
   },
-  distanceBadgeText: { color: '#fff', fontFamily: 'Poppins_600SemiBold', fontSize: 13 },
+  distTxt: { color: '#fff', fontFamily: 'Poppins_600SemiBold', fontSize: 13 },
   simBtn: { backgroundColor: '#CB1D00', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  simBtnText: { color: '#fff', fontSize: 10, fontFamily: 'Poppins_500Medium' },
+  simTxt: { color: '#fff', fontSize: 10, fontFamily: 'Poppins_500Medium' },
 
-  locationButton: {
+  locBtn: {
     position: 'absolute', left: 16,
     flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#1F2933',
     paddingHorizontal: 14, paddingVertical: 10,
-    borderRadius: 20, gap: 8,
+    borderRadius: 22, gap: 8,
     elevation: 8, zIndex: 20,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.3, shadowRadius: 4,
+    shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4,
   },
-  locationText: { color: '#FFFFFF', fontFamily: 'Poppins_400Regular', fontSize: 13 },
+  locTxt: { color: '#fff', fontFamily: 'Poppins_400Regular', fontSize: 13 },
 
-  sheetBackground: { backgroundColor: '#1F2933', borderTopLeftRadius: 20, borderTopRightRadius: 20 },
-  sheetIndicator: { backgroundColor: '#ffffff30', width: 40 },
-  sheetContent: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
+  sheetBg: { backgroundColor: '#1F2933', borderTopLeftRadius: 22, borderTopRightRadius: 22 },
+  sheetHandle: { backgroundColor: '#ffffff30', width: 40 },
+  sheetContent: { flex: 1, paddingHorizontal: 20, paddingTop: 10 },
 
-  sectionTitle: { fontSize: 14, color: '#fff', fontFamily: 'Poppins_600SemiBold', marginBottom: 12 },
-  emptyText: { color: '#9ca3af', fontFamily: 'Poppins_400Regular', fontSize: 13, textAlign: 'center', marginTop: 20 },
+  sectionTitle: { fontSize: 14, color: '#fff', fontFamily: 'Poppins_600SemiBold', marginBottom: 14 },
+  emptyTxt: { color: '#9ca3af', fontFamily: 'Poppins_400Regular', fontSize: 13, textAlign: 'center', marginTop: 20 },
 
   statsRow: { flexDirection: 'row', gap: 12, marginTop: 4 },
-  statCard: { flex: 1, backgroundColor: '#253040', borderRadius: 16, padding: 16, gap: 6 },
+  statCard: { flex: 1, backgroundColor: '#253040', borderRadius: 18, padding: 16, gap: 6 },
   statLabel: { color: '#9ca3af', fontFamily: 'Poppins_400Regular', fontSize: 12 },
-  statValue: { color: '#FFFFFF', fontFamily: 'Poppins_600SemiBold', fontSize: 15 },
+  statValue: { color: '#fff', fontFamily: 'Poppins_600SemiBold', fontSize: 15 },
   progressBar: { height: 6, backgroundColor: '#ffffff20', borderRadius: 3, marginTop: 4 },
   progressFill: { height: 6, backgroundColor: '#CB1D00', borderRadius: 3 },
-  progressText: { color: '#9ca3af', fontFamily: 'Poppins_400Regular', fontSize: 11, textAlign: 'right' },
+  progressTxt: { color: '#9ca3af', fontFamily: 'Poppins_400Regular', fontSize: 11, textAlign: 'right' },
 });
