@@ -4,15 +4,16 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
 } from 'react-native';
 import { DrawerContentScrollView } from '@react-navigation/drawer';
-import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 
+// 1. Adicionada a rota de Notificações na lista de menu
 const menuItems = [
   { label: 'Entregas', icon: 'flame', lib: 'Ionicons', route: 'Home' },
   { label: 'Perfil', icon: 'person-outline', lib: 'Ionicons', route: 'Profile' },
   { label: 'Histórico de entregas', icon: 'time-outline', lib: 'Ionicons', route: 'History' },
+  { label: 'Notificações', icon: 'notifications-outline', lib: 'Ionicons', route: 'Notifications' }, // <-- Novo item
   { label: 'Segurança', icon: 'shield-checkmark-outline', lib: 'Ionicons', route: 'Security' },
   { label: 'Ajuda', icon: 'help-circle-outline', lib: 'Ionicons', route: 'Help' },
   { label: 'Configurações', icon: 'settings-outline', lib: 'Ionicons', route: 'Settings' },
@@ -31,7 +32,7 @@ export default function DrawerContent(props: any) {
         <View>
           <Text style={styles.name}>Ladislau Mário</Text>
           <View style={styles.ratingRow}>
-            {[1,2,3,4].map(i => (
+            {[1, 2, 3, 4].map(i => (
               <Ionicons key={i} name="star" size={14} color="#FFD700" />
             ))}
             <Ionicons name="star-half" size={14} color="#FFD700" />
@@ -72,6 +73,7 @@ export default function DrawerContent(props: any) {
   );
 }
 
+// Estilos permanecem os mesmos...
 const styles = StyleSheet.create({
   container: {
     flex: 1,
