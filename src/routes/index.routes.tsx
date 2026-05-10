@@ -20,6 +20,8 @@ import AccessConfig from '../pages/deliver/deliverPermission/deliverPermission';
 // ✅ BottomRoutes contém o Drawer com o Home dentro
 import BottomRoutes from './bottom.routes';
 import DeliverRoutes from './deliver.routes';
+import PaymentModal from '../pages/deliver/mainDeliver/plans/paymentmodal ';
+import PlanCard from '../pages/deliver/mainDeliver/plans/planCard';
 
 const Stack = createStackNavigator();
 
@@ -45,9 +47,12 @@ export default function Routes() {
       }}
     >
 
+
+      <Stack.Screen name="DeliverHomeTab" component={DeliverRoutes} />
+
       <Stack.Screen name="Onboarding" component={Onboarding} />
       <Stack.Screen name="Home" component={BottomRoutes} />
-      <Stack.Screen name="DeliverHomeTab" component={DeliverRoutes} />
+
       {/* ✅ Home agora é o BottomRoutes que tem o Drawer */}
       
       

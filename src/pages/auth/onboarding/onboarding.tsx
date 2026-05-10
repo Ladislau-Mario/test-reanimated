@@ -51,52 +51,54 @@ export default function Onboarding() {
   }
 };
  */  
+
+  const [loading, setLoading] = React.useState(false);
+
   const handleGoogleSignIn = async () => {
-  try {
+    if (loading) return; // evita cliques duplos
+   try {
+    setLoading(true);
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-    console.log("Play Services OK");
     
-    const userInfo = await GoogleSignin.signIn();
-    console.log("USER INFO:", JSON.stringify(userInfo));
-    
-    const { idToken } = await GoogleSignin.getTokens();
-      
-      // Pega o token e autentica no Firebase
-      const credential = GoogleAuthProvider.credential(idToken);
-      const userCredential = await signInWithCredential(auth, credential);
-      const user = userCredential.user;
+    await GoogleSignin.signOut();
+    const result = await GoogleSignin.signIn();
 
-      const userData = {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        token: idToken,
-      };
-
-      try {
-        const res = await api.post('/auth/google', userData);
-        await AsyncStorage.setItem('@Baza:user', JSON.stringify(userData));
-
-        if (res.data.isNewUser) {
-          navigation.navigate('ChoiceMode');
-        } else {
-          navigation.navigate('Home');
-        }
-      } catch (error) {
-        console.log("Erro no servidor:", error);
-        navigation.navigate('ChoiceMode');
-      }
-
-    } catch (error: any) {
-      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-        console.log("Utilizador cancelou o login");
-      } else if (error.code === statusCodes.IN_PROGRESS) {
-        console.log("Login já em progresso");
-      } else {
-        console.log("Erro Google Sign-In:", error);
-      }
+    if (result.type === 'cancelled') {
+      setLoading(false);
+      return;
     }
-  };
+
+    const idToken = result.data?.idToken;
+    if (!idToken) { setLoading(false); return; }
+
+    const credential = GoogleAuthProvider.credential(idToken);
+    const userCredential = await signInWithCredential(auth, credential);
+    const user = userCredential.user;
+
+    const userData = {
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName,
+      token: idToken,
+    };
+
+    // Navega imediatamente sem esperar o servidor
+    navigation.navigate('ChoiceMode');
+    
+    // Envia para o servidor em background
+    AsyncStorage.setItem('@Baza:user', JSON.stringify(userData));
+    api.post('/auth/google', userData).catch(e => console.log("Servidor:", e));
+
+  } catch (error: any) {
+    if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+      console.log("Cancelado");
+    } else {
+      console.log("Erro:", error);
+    }
+  } finally {
+    setLoading(false);
+  }
+};
  
   return (
     <BackgroundWrapper>
@@ -140,7 +142,7 @@ export default function Onboarding() {
           />
 
           <GradientButton 
-            text='Continuar com Google'
+            text={loading ? 'A entrar...' : 'Continuar com Google'}
             onPress={handleGoogleSignIn}
             activeOpacity={0.8}
             icon={

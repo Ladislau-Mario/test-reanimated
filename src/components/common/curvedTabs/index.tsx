@@ -130,7 +130,7 @@ function TabItem({
 
   useEffect(() => {
     translateY.value = withSpring(isActive ? FLOAT_OFFSET : 0, {
-      damping: 30,
+      damping: 25,
       stiffness: 130,
     });
   }, [isActive]);
