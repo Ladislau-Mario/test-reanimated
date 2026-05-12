@@ -1,72 +1,94 @@
-import React, { useState } from 'react';
-import { 
-  View, Text, KeyboardAvoidingView, Platform, ScrollView, Image 
+// src/pages/client/clientRegister/clientRegisterEmail/clientRegisterEmail.tsx
+import React, { useState, useEffect } from 'react';
+import {
+  View, Text, KeyboardAvoidingView, Platform,
+  ScrollView, Image, Alert,
 } from 'react-native';
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 
 import BackgroundWrapper from '../../../../components/layout/background/bgscreen';
 import { themes } from '../../../../global/themes';
 import { styles } from './style';
-
 import { InputRegister } from '../../../../components/modules/client/inputRegister/inputRegister';
 import { Button } from '../../../../components/common/button/button';
 import { ButtonBack } from '../../../../components/common/backButton/backButton';
-import { Ionicons } from '@expo/vector-icons';
+import { authService } from '../../../../components/modules/services/api/authService';
+import { auth } from '../../../../../firebaseConfig';
 
 export default function ClientRegisterEmail() {
   const navigation = useNavigation<any>();
 
-  // Estados
-  const [nome, setNome] = useState('');
-  const [email] = useState('exemplo@gmail.com'); // Simulado como vindo do Google/Auth
+  // Dados vindos do Firebase (utilizador Google)
+  const [nomeDisplay, setNomeDisplay] = useState('');
+  const [emailDisplay, setEmailDisplay] = useState('');
+
+  // Único campo editável nesta tela
   const [phone, setPhone] = useState('');
-  
-  const [errors, setErrors] = useState({
-    nome: '',
-    phone: ''
-  });
+
+  const [errors, setErrors] = useState({ phone: '' });
+  const [loading, setLoading] = useState(false);
 
   const primaryColor = themes.colors.primary;
   const errorColor = '#FF4D4D';
 
-  // Validação do Telefone (Padrão Unitel/Movicel/Africell)
+  // Preenche nome e email a partir da sessão guardada ou do Firebase
+  useEffect(() => {
+    const carregarDados = async () => {
+      const sessao = await authService.obterSessao();
+      if (sessao) {
+        setNomeDisplay(sessao.nome || sessao.displayName || '');
+        setEmailDisplay(sessao.email || '');
+      } else {
+        const firebaseUser = auth.currentUser;
+        if (firebaseUser) {
+          setNomeDisplay(firebaseUser.displayName || '');
+          setEmailDisplay(firebaseUser.email || '');
+        }
+      }
+    };
+    carregarDados();
+  }, []);
+
   const validatePhone = (num: string) => {
-    if (num.length === 0) return "Telefone obrigatório";
-    if (!num.startsWith('9')) return "Deve começar com 9";
-    if (num.length < 9) return "Deve ter 9 dígitos";
-    return "";
+    if (!num || num.length === 0) return 'Telefone obrigatório';
+    if (!num.startsWith('9')) return 'Deve começar com 9';
+    if (num.length < 9) return 'Deve ter 9 dígitos';
+    return '';
   };
 
-  const handleConfirmar = () => {
-    const nameRegex = /^[A-Za-zÀ-ÖØ-öø-ÿ\s]+$/;
-    
-    let nomeErr = "";
-    if (nome.trim().length < 3) {
-      nomeErr = "Nome muito curto";
-    } else if (!nameRegex.test(nome)) {
-      nomeErr = "O nome deve conter apenas letras";
+  const handleConfirmar = async () => {
+    const phoneErr = validatePhone(phone);
+    if (phoneErr) {
+      setErrors({ phone: phoneErr });
+      return;
     }
 
-    const phoneErr = validatePhone(phone);
+    setLoading(true);
+    try {
+      // Actualiza o perfil no backend com o telefone
+      await authService.atualizarPerfil({ });
 
-    setErrors({
-      nome: nomeErr,
-      phone: phoneErr
-    });
+      // Actualiza sessão local com o telefone
+      const sessao = await authService.obterSessao();
+      await authService.salvarSessao({ ...sessao, telefone: phone });
 
-    if (!nomeErr && !phoneErr) {
-      // Avança para a próxima etapa (ex: Onboarding ou Home)
-      navigation.reset({ routes: [{ name: 'Onboarding' }] });
+      // Utilizador Google → vai para ChoiceMode escolher o papel
+      navigation.reset({ index: 0, routes: [{ name: 'ChoiceMode' }] });
+    } catch (error: any) {
+      Alert.alert('Baza', error.response?.data?.message || 'Erro ao actualizar perfil.');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <BackgroundWrapper>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoid}
       >
-        <ScrollView 
+        <ScrollView
           style={styles.container}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -79,50 +101,71 @@ export default function ClientRegisterEmail() {
           <View style={styles.titleSection}>
             <Text style={styles.mainTitle}>Finalizar Perfil</Text>
             <View style={styles.supportContainer}>
-              <Text style={styles.topSupportText}>Verifique os dados para continuar no Baza.</Text>
+              <Text style={styles.topSupportText}>
+                Verifique os dados para continuar no Baza.
+              </Text>
             </View>
           </View>
-        
+
           <View style={styles.groupedInputCard}>
-            {/* NOME COMPLETO */}
-            <InputRegister 
+            {/* NOME — desabilitado, vem do Google */}
+            <InputRegister
               placeholder="Nome completo"
-              value={nome}
-              autoCapitalize="words"
-              onChangeText={(t) => { setNome(t); setErrors(p => ({...p, nome: ''})) }}
-              errorMessage={errors.nome}
-              icon={<Ionicons name="person-outline" size={18} color={errors.nome ? errorColor : primaryColor} />}
+              value={nomeDisplay}
+              editable={false}
+              style={{ color: 'rgba(30, 37, 48, 0.4)' }}
+              icon={
+                <Ionicons
+                  name="person-outline"
+                  size={18}
+                  color="rgba(30, 37, 48, 0.3)"
+                />
+              }
             />
 
-            {/* EMAIL (DESABILITADO) */}
-            <InputRegister 
+            {/* EMAIL — desabilitado, vem do Google */}
+            <InputRegister
               placeholder="Endereço de e-mail"
-              value={email}
-              editable={false} // Campo não editável
-              style={{ color: 'rgba(30, 37, 48, 0.4)' }} // Texto mais claro
-              icon={<Ionicons name="mail-outline" size={18} color="rgba(30, 37, 48, 0.3)" />}
+              value={emailDisplay}
+              editable={false}
+              style={{ color: 'rgba(30, 37, 48, 0.4)' }}
+              icon={
+                <Ionicons
+                  name="mail-outline"
+                  size={18}
+                  color="rgba(30, 37, 48, 0.3)"
+                />
+              }
             />
 
-            {/* TELEFONE COM BANDEIRA DE ANGOLA */}
-            <InputRegister 
+            {/* TELEFONE — editável */}
+            <InputRegister
               placeholder="9xx xxx xxx"
               keyboardType="numeric"
               maxLength={9}
               value={phone}
-              onChangeText={(t) => { setPhone(t); setErrors(p => ({...p, phone: ''})) }}
+              onChangeText={(t: string) => {
+                setPhone(t);
+                setErrors({ phone: '' });
+              }}
               errorMessage={errors.phone}
-              isLast={true}
+              isLast
               icon={
-                <Image 
-                  source={require('../../../../assets/bandeira-angola.png')} 
-                  style={{ width: 22, height: 22, borderRadius: 2 }} 
+                <Image
+                  source={require('../../../../assets/bandeira-angola.png')}
+                  style={{ width: 22, height: 22, borderRadius: 2 }}
                 />
               }
             />
           </View>
 
           <View style={styles.actionButtonContainer}>
-            <Button text='Confirmar' onPress={handleConfirmar} />
+            <Button
+              text="Confirmar"
+              loading={loading}
+              onPress={handleConfirmar}
+              disabled={loading}
+            />
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

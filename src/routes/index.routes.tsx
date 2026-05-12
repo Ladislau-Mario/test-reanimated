@@ -16,12 +16,14 @@ import FirstRegistrationStatus from '../pages/deliver/registrationStatus/firstRe
 import SecundRegistrationStatus from '../pages/deliver/registrationStatus/secundRegisterStatus/secundRegisterStatus';
 import ThirdRegistrationStatus from '../pages/deliver/registrationStatus/thirdRegisterStatus/thirdRegisterStatus';
 import AccessConfig from '../pages/deliver/deliverPermission/deliverPermission';
+import DeliverNotifications from '../pages/deliver/mainDeliver/notification';
+import DeliverHistory from '../pages/deliver/mainDeliver/history';
 
-// ✅ BottomRoutes contém o Drawer com o Home dentro
 import BottomRoutes from './bottom.routes';
 import DeliverRoutes from './deliver.routes';
-import PaymentModal from '../pages/deliver/mainDeliver/plans/paymentmodal ';
-import PlanCard from '../pages/deliver/mainDeliver/plans/planCard';
+
+// ✅ Página de Planos (index.tsx da pasta plans)
+import Plans from '../pages/deliver/mainDeliver/plans';
 
 const Stack = createStackNavigator();
 
@@ -49,18 +51,37 @@ export default function Routes() {
 
 
       <Stack.Screen name="DeliverHomeTab" component={DeliverRoutes} />
-
-      <Stack.Screen name="Onboarding" component={Onboarding} />
       <Stack.Screen name="Home" component={BottomRoutes} />
+      <Stack.Screen name="Onboarding" component={Onboarding} />
+      <Stack.Screen name="ClientRegisterEmail" component={ClientRegisterEmail} />
 
-      {/* ✅ Home agora é o BottomRoutes que tem o Drawer */}
-      
-      
+      {/* ✅ Plans — sobe de baixo como modal */}
+      <Stack.Screen
+        name="Plans"
+        component={Plans}
+        options={{
+          gestureDirection: 'vertical',
+          cardStyleInterpolator: ({ current, layouts }) => ({
+            cardStyle: {
+              transform: [
+                {
+                  translateY: current.progress.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [layouts.screen.height, 0],
+                  }),
+                },
+              ],
+            },
+          }),
+        }}
+      />
+
+      <Stack.Screen name="DeliverNotifications" component={DeliverNotifications} />
+      <Stack.Screen name="DeliverHistory" component={DeliverHistory} />
       <Stack.Screen name="InputPhoneNumber" component={InputPhoneNumber} />
       <Stack.Screen name="VerifycationNumber" component={VerifycationNumber} />
       <Stack.Screen name="ChoiceMode" component={ChoiceMode} />
       <Stack.Screen name="ClientRegister" component={ClientRegister} />
-      <Stack.Screen name="ClientRegisterEmail" component={ClientRegisterEmail} />
       <Stack.Screen name="LocationPermission" component={LocationPermission} />
       <Stack.Screen name="DeliverRegister" component={DeliverRegister} />
       <Stack.Screen name="DeliverRegisterTwo" component={DeliverRegisterTwo} />

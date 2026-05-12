@@ -10,6 +10,8 @@ import { CurvedBottomTabs } from '../components/common/curvedTabs';
 import FireIcon from '../components/common/icons/fireIcon';
 import EarningsIcon from '../components/common/icons/earningsIcon';
 import ProfileIcon from '../components/common/icons/profileIcon';
+import DeliverNotifications from '../pages/deliver/mainDeliver/notification';
+import DeliverHistory from '../pages/deliver/mainDeliver/history';
 
 const Tab = createBottomTabNavigator();
 
@@ -25,6 +27,8 @@ export default function DeliverRoutes() {
   screenOptions={{ headerShown: false }}
   initialRouteName="DeliverHome"  // garante que abre na página de Entregas
 >
+  
+  
   <Tab.Screen
     name="Earnings"
     component={Earnings}
@@ -58,6 +62,23 @@ export default function DeliverRoutes() {
       ),
     }}
   />
+{/**
+  <Tab.Screen
+      name="DeliverNotifications"
+      component={DeliverNotifications}
+      options={{
+        tabBarButton: () => null, // Esconde o ícone da barra inferior
+      }}
+  />
+  <Tab.Screen
+      name="DeliverHistory"
+      component={DeliverHistory}
+      options={{
+        tabBarButton: () => null,
+      }}
+  />
+  */}
 </Tab.Navigator>
+
   );
 }

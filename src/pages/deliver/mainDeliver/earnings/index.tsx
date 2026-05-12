@@ -99,7 +99,9 @@ export default function Earnings() {
         <PlansBanner daysLeft={3} plan="Pro" />
 
         {/* Bottom padding for tab bar */}
-        <View style={{ height: 110 }} />
+        <View style={{ height: 110 }} 
+          
+        />
       </ScrollView>
 
       {/* ── Objectives Modal ────────────────────────────────────────────── */}
